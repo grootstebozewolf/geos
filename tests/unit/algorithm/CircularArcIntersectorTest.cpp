@@ -1753,6 +1753,100 @@ void object::test<87>()
     ensure_equals(arc.p2(), arcOut.p2());
 }
 
+template<>
+template<>
+void object::test<88>()
+{
+    set_test_name("distinct crossing circles whose radical line passes through a center are not cocircular");
+
+    // Circles (0,0) r=3 and (4,0) r=5 intersect at (0, +/-3); the radical
+    // line x=0 passes through the first center, so the distance from that
+    // center to the radical line is exactly zero. This configuration was
+    // misclassified as a cocircular intersection, producing a bogus
+    // intersection arc.
+    checkIntersection(XY{3, 0}, XY{0, 3}, XY{-3, 0},
+                      XY{9, 0}, XY{4, 5}, XY{-1, 0},
+                      CircularArcIntersector::ONE_POINT_INTERSECTION,
+                      XY{0, 3});
+}
+
+template<>
+template<>
+void object::test<89>()
+{
+    set_test_name("radical line through a center, arcs on opposite sides do not intersect");
+
+    // Same circles as test 88, but the first arc is the lower semicircle,
+    // which contains neither (0, 3) nor -- because the second arc is the
+    // upper semicircle of its circle -- shares any point with it. The
+    // cocircular misclassification returned the first arc's own endpoints
+    // as phantom intersection points.
+    checkIntersection(XY{3, 0}, XY{0, -3}, XY{-3, 0},
+                      XY{9, 0}, XY{4, 5}, XY{-1, 0},
+                      CircularArcIntersector::NO_INTERSECTION);
+}
+
+template<>
+template<>
+void object::test<90>()
+{
+    set_test_name("arcs tangent at a shared vertex intersect at it");
+
+    // The circles through these control points are internally tangent at
+    // the shared vertex (5, 0). The rounded circle-circle disjointness test
+    // concludes the circles do not meet, which formerly discarded the
+    // exact shared vertex. (Differential-test oracle invariant: arcs
+    // sharing an endpoint intersect.)
+    checkIntersection(XY{5, 0}, XY{6.530331962423936, 32.9099081287533}, XY{39.1383458646334, 37.61324718856101},
+                      XY{5, 0}, XY{-13.013189892510923, 476.4218618845866}, XY{426.8482396243887, 660.3353967726679},
+                      CircularArcIntersector::ONE_POINT_INTERSECTION,
+                      XY{5, 0});
+}
+
+template<>
+template<>
+void object::test<91>()
+{
+    set_test_name("segment leaving an arc endpoint tangentially intersects it there");
+
+    // The segment starts at the arc's end point and leaves along the
+    // tangent direction. The rounded circle-line discriminant is negative,
+    // which formerly returned NO_INTERSECTION before the exact
+    // endpoint-equality check could run.
+    CircularArcIntersector cai;
+
+    auto arc = CircularArc::create(XY{185.1688472106127, 96.78251018226638},
+                                   XY{-175.2357888309983, 133.75123759406668},
+                                   XY{-76.06314473466698, -214.70675865465833});
+
+    CoordinateSequence seg{
+        XY{-76.06314473466698, -214.70675865465833}, XY{-75.87645112088994, -214.7682913361581}};
+
+    cai.intersects(arc, seg, 0, 1, false);
+
+    ensure_equals(cai.getNumPoints(), 1u);
+    ensure_equals(cai.getPoint(0), seg.getAt<CoordinateXY>(0));
+}
+
+template<>
+template<>
+void object::test<92>()
+{
+    set_test_name("intersection coordinates stay accurate when one circumradius is much larger");
+
+    // The first arc's circumcircle has radius ~1.4e6 while the second is
+    // ~1; a double-precision circumcenter of the large circle carries
+    // enough rounding error that the second intersection point was off by
+    // ~3e-4. The expected values below agree with exact rational
+    // arithmetic to ~4e-15. The first intersection is the exact shared
+    // control point (5, 0).
+    checkIntersection(XY{-1205710.3869373242, 488285.60694160755}, XY{57627.56193949602, 1875055.522159936}, XY{5, 0},
+                      XY{6.063981981321541, -1.6846481694137145}, XY{6.304378325023034, -0.35450341016896403}, XY{5, 0},
+                      CircularArcIntersector::TWO_POINT_INTERSECTION,
+                      XY{5, 0},
+                      XY{5.28975657706563, 0.09709938140968992});
+}
+
 // TODO: check Z values of arc result centerpoints
 // TODO: add tests for seg/seg
 

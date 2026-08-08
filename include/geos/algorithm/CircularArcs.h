@@ -16,9 +16,11 @@
 
 #include <geos/export.h>
 #include <geos/geom/Coordinate.h>
+#include <geos/math/DD.h>
 
 #include <array>
 #include <optional>
+#include <utility>
 
 namespace geos {
 namespace geom {
@@ -36,6 +38,14 @@ public:
     /// Return the circle center of an arc defined by three points
     static geom::CoordinateXY getCenter(const geom::CoordinateXY& p0, const geom::CoordinateXY& p1,
                                         const geom::CoordinateXY& p2);
+
+    /// Return the circle center of an arc defined by three points, computed
+    /// in extended (double-double) precision. Intended for intersection
+    /// computations, where the rounding error of a double-precision center
+    /// is amplified when the circumradius is much larger than the
+    /// coordinate magnitudes.
+    static std::pair<math::DD, math::DD> getCenterDD(const geom::CoordinateXY& p0, const geom::CoordinateXY& p1,
+                                                     const geom::CoordinateXY& p2);
 
     static double getAngle(const geom::CoordinateXY& pt, const geom::CoordinateXY& center);
 
@@ -82,6 +92,51 @@ public:
     circleIntersectsLine(const geom::CoordinateXY& center, double r,
                          const geom::CoordinateXY& p0, const geom::CoordinateXY& p1,
                          geom::CoordinateXY& isect0, geom::CoordinateXY& isect1);
+
+    /** Determines whether and where a circle intersects a line, with the circle
+     *  provided in extended (double-double) precision.
+     *
+     * The intersection decision is made on the sign of the discriminant
+     * (r^2 - d^2, with d the center-to-line distance) evaluated in extended
+     * precision, so a tangency decided by exact arithmetic on the inputs is
+     * not flipped by rounding in the intermediate quantities.
+     *
+     * @param cx X ordinate of the circle center
+     * @param cy Y ordinate of the circle center
+     * @param rsq Squared radius of the circle
+     * @param p0 One point defining a line of infinite length
+     * @param p1 Second point defining a line of infinite length
+     * @param isect0 Set to the first intersection point, if it exists
+     * @param isect1 Set to the second intersection point, if it exists
+     * @return The number of intersection points
+     */
+    static int
+    circleIntersectsLine(const math::DD& cx, const math::DD& cy, const math::DD& rsq,
+                         const geom::CoordinateXY& p0, const geom::CoordinateXY& p1,
+                         geom::CoordinateXY& isect0, geom::CoordinateXY& isect1);
+
+    /** Determines whether and where two circles intersect, with the circles
+     *  provided in extended (double-double) precision.
+     *
+     * The intersection decision is made on the sign of the four-factor
+     * discriminant 4*dq*r1sq - (dq + r1sq - r2sq)^2 (dq the squared center
+     * distance) evaluated in extended precision.
+     *
+     * @param c1x X ordinate of the first circle's center
+     * @param c1y Y ordinate of the first circle's center
+     * @param r1sq Squared radius of the first circle
+     * @param c2x X ordinate of the second circle's center
+     * @param c2y Y ordinate of the second circle's center
+     * @param r2sq Squared radius of the second circle
+     * @param isect0 Set to the first intersection point, if it exists
+     * @param isect1 Set to the second intersection point, if it exists
+     * @return -1 if the circles are coincident, else the number of
+     *         intersection points (0, 1, or 2)
+     */
+    static int
+    circleIntersectsCircle(const math::DD& c1x, const math::DD& c1y, const math::DD& r1sq,
+                           const math::DD& c2x, const math::DD& c2y, const math::DD& r2sq,
+                           geom::CoordinateXY& isect0, geom::CoordinateXY& isect1);
 
     /** Determines whether and where a circle intersects a line segment.
      *

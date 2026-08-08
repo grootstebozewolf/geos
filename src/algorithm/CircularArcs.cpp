@@ -188,7 +188,7 @@ CircularArcs::interpolateZM(const CoordinateSequence& seq, std::size_t i0,
 }
 
 template<typename T>
-CoordinateXY getCenterImpl(const CoordinateXY& p0, const CoordinateXY& p1, const CoordinateXY& p2)
+std::pair<T, T> getCenterImpl(const CoordinateXY& p0, const CoordinateXY& p1, const CoordinateXY& p2)
 {
     // Circumcenter formulas from Graphics Gems III
     T p0x{p0.x};
@@ -219,14 +219,10 @@ CoordinateXY getCenterImpl(const CoordinateXY& p0, const CoordinateXY& p1, const
     T Hx = (e1*p0.x + e2*p1.x + e3*p2.x) / e;
     T Hy = (e1*p0.y + e2*p1.y + e3*p2.y) / e;
 
-    T rx = 0.5*(G3x - Hx);
-    T ry = 0.5*(G3y - Hy);
+    T rx = (G3x - Hx)*0.5;
+    T ry = (G3y - Hy)*0.5;
 
-    if constexpr (std::is_same_v<T, math::DD>) {
-        return {rx.doubleValue(), ry.doubleValue()};
-    } else {
-        return {rx, ry};
-    }
+    return {rx, ry};
 }
 
 CoordinateXY
@@ -237,7 +233,19 @@ CircularArcs::getCenter(const CoordinateXY& p0, const CoordinateXY& p1, const Co
         return { 0.5*(p0.x + p1.x), 0.5*(p0.y + p1.y) };
     }
 
-    return getCenterImpl<double>(p0, p1, p2);
+    auto [cx, cy] = getCenterImpl<double>(p0, p1, p2);
+    return {cx, cy};
+}
+
+std::pair<math::DD, math::DD>
+CircularArcs::getCenterDD(const CoordinateXY& p0, const CoordinateXY& p1, const CoordinateXY& p2)
+{
+    if (p0.equals2D(p2)) {
+        // Closed circle
+        return { (math::DD(p0.x) + p1.x)*0.5, (math::DD(p0.y) + p1.y)*0.5 };
+    }
+
+    return getCenterImpl<math::DD>(p0, p1, p2);
 }
 
 void
@@ -313,70 +321,115 @@ CircularArcs::expandEnvelope(geom::Envelope& e, const geom::CoordinateXY& p0, co
     }
 }
 
+/// Square root of a nonnegative double-double value, refined with one Newton
+/// step so that products against it round correctly to double precision.
+static math::DD
+sqrtDD(const math::DD& x)
+{
+    const double s0 = std::sqrt(std::max(0.0, x.doubleValue()));
+    if (s0 == 0) {
+        return math::DD(0.0);
+    }
+    return (math::DD(s0) + x/math::DD(s0))*0.5;
+}
+
 int
 CircularArcs::circleIntersectsLine(const geom::CoordinateXY& center, double r,
                         const geom::CoordinateXY& p0, const geom::CoordinateXY& p1,
                         geom::CoordinateXY& isect0, geom::CoordinateXY& isect1)
 {
-    const double& x0 = center.x;
-    const double& y0 = center.y;
+    using math::DD;
+    return circleIntersectsLine(DD(center.x), DD(center.y), DD(r)*r, p0, p1, isect0, isect1);
+}
 
-    if (p1.x == p0.x) {
-        // vertical line
-        double x = p1.x;
+int
+CircularArcs::circleIntersectsLine(const math::DD& cx, const math::DD& cy, const math::DD& rsq,
+                                   const geom::CoordinateXY& p0, const geom::CoordinateXY& p1,
+                                   geom::CoordinateXY& isect0, geom::CoordinateXY& isect1)
+{
+    using math::DD;
 
-        if (p1.x > x0 + r || p1.x < x0 - r) {
-            return 0;
-        }
+    // Parametric form X(t) = P0 + t*(P1-P0). With F the foot of the
+    // perpendicular from the center to the line and d the center-to-line
+    // distance, the intersections are F +/- sqrt(r^2 - d^2)*u. The
+    // discriminant sign (here as r^2*L2 - cross^2, both nonnegative) and the
+    // foot are evaluated in extended precision; only the final square root
+    // and the emitted coordinates round.
+    DD ux = DD(p1.x) - p0.x;
+    DD uy = DD(p1.y) - p0.y;
+    DD L2 = ux*ux + uy*uy;
 
-        if (p1.x == x0 + r || p1.x == x0 - r) {
-            isect0 = {p1.x, y0};
-            return 1;
-        }
-
-        double A = 1;
-        double B = -2*y0;
-        double C = x*x - 2*x*x0 + x0*x0 + y0*y0 - r*r;
-
-        double d = std::sqrt(B*B - 4*A*C);
-        double Y1 = (-B + d)/(2*A);
-        double Y2 = (-B - d)/(2*A);
-
-        isect0 = {x, Y1};
-        isect1 = {x, Y2};
-
-        return 2;
-    }
-
-    const double m = (p1.y - p0.y) / (p1.x - p0.x);
-    const double b = p1.y - p1.x*m;
-
-    // Take equation defining circle: (x - x0)^2 + (y - y0)^2 = r^2
-    // Substitute in equation defining line: y = mx + b
-    // Rearrange into standard quadratic form:  Ax^2 + Bx + C = 0
-    const double A = 1 + m*m;
-    const double B = -2*x0 + 2*m*b - 2*m*y0;
-    const double C = x0*x0 + b*b - 2*b*y0 + y0*y0 - r*r;
-
-    const double dd = B*B - 4*A*C;
-
-    if (dd < 0) {
+    if (L2.isZero()) {
+        // degenerate line
         return 0;
     }
 
-    // TODO use robust quadratic solver such as https://github.com/archermarx/quadratic ?
-    // auto [X1, X2] = quadratic::solve(A, B, C);
+    DD wx = cx - p0.x;
+    DD wy = cy - p0.y;
+    DD cross = ux*wy - uy*wx;
+    DD disc = rsq*L2 - cross*cross;
 
-    const double d = std::sqrt(dd);
-    const double X1 = (-B + d)/(2*A);
-    const double X2 = (-B - d)/(2*A);
+    if (disc.isNegative()) {
+        return 0;
+    }
 
-    isect0 = {X1, m* X1 + b};
-    if (d == 0) {
+    DD t = (wx*ux + wy*uy) / L2;
+    DD fx = DD(p0.x) + ux*t;
+    DD fy = DD(p0.y) + uy*t;
+
+    // (h/|P1-P0|)^2 with h^2 = r^2 - d^2
+    const DD g = sqrtDD(disc/(L2*L2));
+
+    isect0 = {(fx + ux*g).doubleValue(), (fy + uy*g).doubleValue()};
+
+    if (disc.isZero() || g.isZero()) {
         return 1;
     }
 
-    isect1 = {X2, m* X2 + b};
+    isect1 = {(fx - ux*g).doubleValue(), (fy - uy*g).doubleValue()};
+    return 2;
+}
+
+int
+CircularArcs::circleIntersectsCircle(const math::DD& c1x, const math::DD& c1y, const math::DD& r1sq,
+                                     const math::DD& c2x, const math::DD& c2y, const math::DD& r2sq,
+                                     geom::CoordinateXY& isect0, geom::CoordinateXY& isect1)
+{
+    using math::DD;
+
+    DD dx = c2x - c1x;
+    DD dy = c2y - c1y;
+    DD dq = dx*dx + dy*dy;
+
+    if (dq.isZero()) {
+        // concentric: coincident if the radii agree, else no intersection
+        return r1sq == r2sq ? -1 : 0;
+    }
+
+    // Four-factor discriminant (d+r1+r2)(d+r1-r2)(r2+d-r1)(r1+r2-d), the
+    // sign of which decides tangency without forming any square root.
+    DD e1 = dq + r1sq - r2sq;   // = 2*d*a, with a the distance from c1 to the radical line
+    DD disc = dq*r1sq*4.0 - e1*e1;
+
+    if (disc.isNegative()) {
+        // circles are disjoint, or one is contained within the other
+        return 0;
+    }
+
+    DD t = e1 / (dq*2.0);       // = a/d
+    DD px = c1x + dx*t;         // radical point: where the line between the
+    DD py = c1y + dy*t;         // centers crosses the radical line
+
+    // (h/d)^2, with h the distance from the radical point to the intersections
+    const DD g = sqrtDD(r1sq/dq - t*t);
+
+    isect0 = {(px + dy*g).doubleValue(), (py - dx*g).doubleValue()};
+
+    if (disc.isZero() || g.isZero()) {
+        return 1;
+    }
+
+    isect1 = {(px - dy*g).doubleValue(), (py + dx*g).doubleValue()};
     return 2;
 }
 
@@ -711,28 +764,11 @@ CircularArcs::arcIntersectionPoint(const CoordinateXY& ca, double ra,
 {
     // The body of this function is adapted and simplified from CircularArcIntersector.
 
-    const auto d = ca.distance(cb);
+    using math::DD;
 
-    if (d > ra + rb) {
-        // Circles are disjoint
-        return std::nullopt;
-    }
-
-    if (d < std::abs(ra - rb)) {
-        // One circle contained within the other; arcs cannot intersect
-        return std::nullopt;
-    }
-
-    // a: the distance from c1 to the "radical line", which connects the two intersection points
-    // Expression rewritten by Herbie, https://herbie.uwplse.org/demo/
-    // const double a = (d*d + r1*r1 - r2*r2) / (2*d);
-    const double a = std::fma(ra-rb, (ra + rb) / (d+d), d*0.5);
-
-    if (a == 0 || (d == 0 && ra == rb)) {
-        return cocircularArcsIntersectionPoint(ca, ra, a0, a2, aCCW, b0, b2, bCCW);
-    }
-
-    // Explicitly check endpoint intersections
+    // Shared endpoints lie exactly on both arcs and are always
+    // intersections; report them before any floating-point circle
+    // computation can conclude the circles are disjoint.
     if (a0.equals2D(b0) || a0.equals2D(b2)) {
         return a0;
     }
@@ -740,26 +776,21 @@ CircularArcs::arcIntersectionPoint(const CoordinateXY& ca, double ra,
         return a2;
     }
 
-    // Compute interior intersection points.
-    const double dx = cb.x - ca.x;
-    const double dy = cb.y - ca.y;
+    CoordinateXY isect0, isect1;
+    const int n = circleIntersectsCircle(DD(ca.x), DD(ca.y), DD(ra)*ra,
+                                         DD(cb.x), DD(cb.y), DD(rb)*rb,
+                                         isect0, isect1);
 
-    // point where a line between the two circle center points intersects
-    // the radical line
-    CoordinateXY p{ca.x + a * dx/d, ca.y+a* dy/d};
+    if (n < 0) {
+        return cocircularArcsIntersectionPoint(ca, ra, a0, a2, aCCW, b0, b2, bCCW);
+    }
 
-    // distance from p to the intersection points
-    const double h = std::sqrt(ra*ra - a*a);
-
-    CoordinateXY isect0{p.x + h* dy/d, p.y - h* dx/d };
-    CoordinateXY isect1{p.x - h* dy/d, p.y + h* dx/d };
-
-    if (containsPointOnCircle(ca, a0, a2, aCCW, isect0) &&
+    if (n > 0 && containsPointOnCircle(ca, a0, a2, aCCW, isect0) &&
         containsPointOnCircle(cb, b0, b2, bCCW, isect0)) {
         return isect0;
     }
 
-    if (containsPointOnCircle(ca, a0, a2, aCCW, isect1) &&
+    if (n > 1 && containsPointOnCircle(ca, a0, a2, aCCW, isect1) &&
         containsPointOnCircle(cb, b0, b2, bCCW, isect1)) {
         return isect1;
     }

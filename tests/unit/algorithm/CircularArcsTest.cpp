@@ -970,4 +970,37 @@ set_test_name("getMidpointAngle");
     ensure_equals(CircularArcs::getMidpointAngle(0, 0, false), MATH_PI);
 }
 
+template<>
+template<>
+void object::test<71>()
+{
+    set_test_name("distance: arcs tangent at a shared vertex");
+
+    // The circles through these control points are internally tangent at the
+    // shared vertex (5, 0), but the rounded circle-circle disjointness test
+    // concludes they do not meet. The exact shared vertex must still make
+    // the distance zero.
+    CircularArc a = CircularArc::create(XY{5, 0}, XY{6.530331962423936, 32.9099081287533}, XY{39.1383458646334, 37.61324718856101});
+    CircularArc b = CircularArc::create(XY{5, 0}, XY{-13.013189892510923, 476.4218618845866}, XY{426.8482396243887, 660.3353967726679});
+
+    ensure_equals(a.distance(b), 0);
+    ensure_equals(b.distance(a), 0);
+}
+
+template<>
+template<>
+void object::test<72>()
+{
+    set_test_name("distance: crossing arcs whose radical line passes through a center");
+
+    // Circles (0,0) r=3 and (4,0) r=5 cross at (0, +/-3), and the distance
+    // from the first center to the radical line is exactly zero. This
+    // configuration was misclassified as cocircular, missing the crossing.
+    CircularArc a = CircularArc::create(XY{3, 0}, XY{0, 3}, XY{-3, 0});
+    CircularArc b = CircularArc::create(XY{9, 0}, XY{4, 5}, XY{-1, 0});
+
+    ensure_equals(a.distance(b), 0);
+    ensure_equals(b.distance(a), 0);
+}
+
 }
