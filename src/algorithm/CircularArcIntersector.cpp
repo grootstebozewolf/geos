@@ -14,10 +14,13 @@
 
 #include <geos/algorithm/Angle.h>
 #include <geos/algorithm/CircularArcIntersector.h>
+#include <geos/algorithm/CircularArcs.h>
 #include <geos/algorithm/LineIntersector.h>
 #include <geos/geom/CoordinateSequences.h>
+#include <geos/math/DD.h>
 
 #include <iomanip>
+#include <tuple>
 
 using geos::geom::CoordinateSequence;
 using geos::geom::CoordinateXY;
@@ -118,6 +121,26 @@ closestPoint(CoordinateXY& p0, CoordinateXY& p1, int n, const CoordinateXY& q)
     return p1;
 }
 
+/// The circle through the arc's control points, in extended (double-double)
+/// precision: a double-precision circumcenter carries a rounding error that
+/// the intersection computation amplifies into the returned coordinates when
+/// the circumradius is much larger than the coordinate magnitudes.
+/// Orientation is canonicalized as in CircularArc::getCenter()/getRadius(),
+/// so an arc and its reverse produce bitwise-identical circles.
+static std::tuple<math::DD, math::DD, math::DD>
+arcCircleDD(const CircularArc& arc)
+{
+    const CoordinateXY& q0 = arc.isCCW() ? arc.p0() : arc.p2();
+    const CoordinateXY& q2 = arc.isCCW() ? arc.p2() : arc.p0();
+
+    auto [cx, cy] = CircularArcs::getCenterDD(q0, arc.p1(), q2);
+
+    math::DD rx = cx - q0.x;
+    math::DD ry = cy - q0.y;
+
+    return {cx, cy, rx*rx + ry*ry};
+}
+
 void
 CircularArcIntersector::intersects(const CircularArc& arc, const CoordinateSequence& seq, std::size_t segPos0, std::size_t segPos1, bool useSegEndpoints)
 {
@@ -131,42 +154,63 @@ CircularArcIntersector::intersects(const CircularArc& arc, const CoordinateSeque
     reset();
 
     // TODO: envelope check?
-    const CoordinateXY& c = arc.getCenter();
-    const double r = arc.getRadius();
-
-    CoordinateXY isect0, isect1;
-    const auto nPointsIntersectingLine = CircularArcs::circleIntersectsLine(c, r, seq.getAt<CoordinateXY>(segPos0), seq.getAt<CoordinateXY>(segPos1), isect0, isect1);
-
-    if (nPointsIntersectingLine == 0) {
-        result = NO_INTERSECTION;
-        return;
-    }
-
-    // Check for exact endpoint-endpoint or endpoint-control point intersections
-    // If found, replace the computed intersection points with an exact endpoint
     const CoordinateXY& ap0 = arc.p0<CoordinateXY>();
     const CoordinateXY& ap1 = arc.p1<CoordinateXY>();
     const CoordinateXY& ap2 = arc.p2<CoordinateXY>();
     const CoordinateXY& bp0 = seq.getAt<CoordinateXY>(segPos0);
     const CoordinateXY& bp1 = seq.getAt<CoordinateXY>(segPos1);
 
-    if (ap0 == bp0 || ap0 == bp1) {
-        closestPoint(isect0, isect1, nPointsIntersectingLine, ap0) = ap0;
+    // A segment endpoint equal to one of the arc's control points lies
+    // exactly on both inputs and is always an intersection. Collect these
+    // up front so that the floating-point circle-line computation below,
+    // which can conclude "no intersection" for a grazing configuration,
+    // cannot discard them.
+    CoordinateXY shared[2];
+    int nShared = 0;
+    for (const CoordinateXY& a : {ap0, ap1, ap2}) {
+        for (const CoordinateXY& b : {bp0, bp1}) {
+            if (a.equals2D(b) && (nShared == 0 || !shared[0].equals2D(a))) {
+                if (nShared < 2) {
+                    shared[nShared++] = a;
+                }
+            }
+        }
     }
-    if (ap1 == bp0 || ap1 == bp1) {
-        closestPoint(isect0, isect1, nPointsIntersectingLine, ap1) = ap1;
+
+    auto [cx, cy, rsq] = arcCircleDD(arc);
+
+    CoordinateXY isect0, isect1;
+    int nCand = CircularArcs::circleIntersectsLine(cx, cy, rsq, bp0, bp1, isect0, isect1);
+
+    if (nCand == 2 && isect1.equals2D(isect0)) {
+        nCand = 1;
     }
-    if (ap2 == bp0 || ap2 == bp1) {
-        closestPoint(isect0, isect1, nPointsIntersectingLine, ap2) = ap2;
+
+    // Check for exact endpoint-endpoint or endpoint-control point intersections
+    // If found, replace the computed intersection points with an exact endpoint
+    if (nCand > 0) {
+        if (ap0 == bp0 || ap0 == bp1) {
+            closestPoint(isect0, isect1, nCand, ap0) = ap0;
+        }
+        if (ap1 == bp0 || ap1 == bp1) {
+            closestPoint(isect0, isect1, nCand, ap1) = ap1;
+        }
+        if (ap2 == bp0 || ap2 == bp1) {
+            closestPoint(isect0, isect1, nCand, ap2) = ap2;
+        }
     }
 
     Envelope segEnv(bp0, bp1);
 
-    if (nPointsIntersectingLine > 0 && segEnv.contains(isect0) && arc.containsPointOnCircle(isect0)) {
+    for (int i = 0; i < nShared; i++) {
+        addArcSegmentIntersectionPoint(shared[i], arc, seq, segPos0, segPos1, useSegEndpoints);
+    }
+
+    if (nCand > 0 && nPt < 2 && !hasIntersection(isect0) && segEnv.contains(isect0) && arc.containsPointOnCircle(isect0)) {
         addArcSegmentIntersectionPoint(isect0, arc, seq, segPos0, segPos1, useSegEndpoints);
     }
 
-    if (nPointsIntersectingLine > 1 && segEnv.contains(isect1) && arc.containsPointOnCircle(isect1)) {
+    if (nCand > 1 && nPt < 2 && !hasIntersection(isect1) && segEnv.contains(isect1) && arc.containsPointOnCircle(isect1)) {
         addArcSegmentIntersectionPoint(isect1, arc, seq, segPos0, segPos1, useSegEndpoints);
     }
 
@@ -205,77 +249,74 @@ CircularArcIntersector::intersects(const CircularArc& arc1, const CircularArc& a
 
     reset();
 
+    const CoordinateXY& ap0 = arc1.p0();
+    const CoordinateXY& ap1 = arc1.p1();
+    const CoordinateXY& ap2 = arc1.p2();
+    const CoordinateXY& bp0 = arc2.p0();
+    const CoordinateXY& bp1 = arc2.p1();
+    const CoordinateXY& bp2 = arc2.p2();
+
+    // A control point shared between the two arcs lies exactly on both of
+    // them and is always an intersection. Collect these up front so that
+    // the floating-point circle computation below, which can conclude
+    // "no intersection" for circles that are tangent at the shared point,
+    // cannot discard them.
+    CoordinateXY shared[2];
+    int nShared = 0;
+    for (const CoordinateXY& a : {ap0, ap1, ap2}) {
+        for (const CoordinateXY& b : {bp0, bp1, bp2}) {
+            if (a.equals2D(b) && (nShared == 0 || !shared[0].equals2D(a))) {
+                if (nShared < 2) {
+                    shared[nShared++] = a;
+                }
+            }
+        }
+    }
+
     // Normalize arguments such that the computed intersection points do not depend
     // on the order of the input arcs
     const bool swapArgs = arc1.getCenter().compareTo(arc2.getCenter()) > 0;
 
-    const auto c1 = swapArgs ? arc2.getCenter() : arc1.getCenter();
-    const auto c2 = swapArgs ? arc1.getCenter() : arc2.getCenter();
+    auto [c1x, c1y, r1sq] = arcCircleDD(swapArgs ? arc2 : arc1);
+    auto [c2x, c2y, r2sq] = arcCircleDD(swapArgs ? arc1 : arc2);
 
-    const auto r1 = swapArgs ? arc2.getRadius() : arc1.getRadius();
-    const auto r2 = swapArgs ? arc1.getRadius() : arc2.getRadius();
+    CoordinateXY isect0, isect1;
+    int nCand = CircularArcs::circleIntersectsCircle(c1x, c1y, r1sq, c2x, c2y, r2sq, isect0, isect1);
 
-    const auto d = c1.distance(c2);
-
-    if (d > r1 + r2) {
-        // Circles are disjoint
-        result = NO_INTERSECTION;
-        return;
-    }
-
-    if (d < std::abs(r1-r2)) {
-        // One circle contained within the other; arcs cannot intersect
-        result = NO_INTERSECTION;
-        return;
-    }
-
-    // a: the distance from c1 to the "radical line", which connects the two intersection points
-    // Expression rewritten by Herbie, https://herbie.uwplse.org/demo/
-    // const double a = (d*d + r1*r1 - r2*r2) / (2*d);
-    const double a = std::fma(r1-r2, (r1 + r2) / (d+d), d*0.5);
-
-    // TODO because the circle center calculation is inexact we need some kind of tolerance here.
-    // Take a PrecisionModel like LineIntersector?
-    if (a == 0 || (d == 0 && r1 == r2)) {
+    // TODO the coincidence test compares circles derived independently from each
+    // arc's control points, so arcs on the same ideal circle that do not share
+    // control points may still be reported as crossing rather than cocircular.
+    if (nCand < 0) {
         computeCocircularIntersection(arc1, arc2);
     } else {
-        // Compute interior intersection points.
-        const double dx = c2.x-c1.x;
-        const double dy = c2.y-c1.y;
-
-        // point where a line between the two circle center points intersects
-        // the radical line
-        CoordinateXY p{c1.x + a* dx/d, c1.y+a* dy/d};
-
-        // distance from p to the intersection points
-        const double h = std::sqrt(r1*r1 - a*a);
-
-        CoordinateXY isect0{p.x + h* dy/d, p.y - h* dx/d };
-        CoordinateXY isect1{p.x - h* dy/d, p.y + h* dx/d };
+        if (nCand == 2 && isect1.equals2D(isect0)) {
+            nCand = 1;
+        }
 
         // Check to see if computed intersection points are inexact versions of an endpoint intersection
-        const CoordinateXY& ap0 = arc1.p0();
-        const CoordinateXY& ap1 = arc1.p1();
-        const CoordinateXY& ap2 = arc1.p2();
-        const CoordinateXY& bp0 = arc2.p0();
-        const CoordinateXY& bp1 = arc2.p1();
-        const CoordinateXY& bp2 = arc2.p2();
-
-        if (ap0 == bp0 || ap0 == bp1 || ap0 == bp2) {
-            closestPoint(isect0, isect1, 2, ap0) = ap0;
-        }
-        if (ap1 == bp0 || ap1 == bp1 || ap1 == bp2) {
-            closestPoint(isect0, isect1, 2, ap1) = ap1;
-        }
-        if (ap2 == bp0 || ap2 == bp1 || ap2 == bp2) {
-            closestPoint(isect0, isect1, 2, ap2) = ap2;
+        if (nCand > 0) {
+            if (ap0 == bp0 || ap0 == bp1 || ap0 == bp2) {
+                closestPoint(isect0, isect1, nCand, ap0) = ap0;
+            }
+            if (ap1 == bp0 || ap1 == bp1 || ap1 == bp2) {
+                closestPoint(isect0, isect1, nCand, ap1) = ap1;
+            }
+            if (ap2 == bp0 || ap2 == bp1 || ap2 == bp2) {
+                closestPoint(isect0, isect1, nCand, ap2) = ap2;
+            }
         }
 
-        if (arc1.containsPointOnCircle(isect0) && arc2.containsPointOnCircle(isect0)) {
+        for (int i = 0; i < nShared; i++) {
+            addArcArcIntersectionPoint(shared[i], arc1, arc2);
+        }
+
+        if (nCand > 0 && nPt < 2 && !hasIntersection(isect0) &&
+            arc1.containsPointOnCircle(isect0) && arc2.containsPointOnCircle(isect0)) {
             addArcArcIntersectionPoint(isect0, arc1, arc2);
         }
 
-        if (isect1 != isect0 && arc1.containsPointOnCircle(isect1) && arc2.containsPointOnCircle(isect1)) {
+        if (nCand > 1 && nPt < 2 && !hasIntersection(isect1) &&
+            arc1.containsPointOnCircle(isect1) && arc2.containsPointOnCircle(isect1)) {
             addArcArcIntersectionPoint(isect1, arc1, arc2);
         }
     }
