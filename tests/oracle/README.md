@@ -1,5 +1,12 @@
 # Differential testing against the NetTopologySuite.Proofs oracle
 
+In-process Phase 5 FFI (optional): `#include <geos/algorithm/RocqNative.h>`
+and call `ntsrocq::RocqNative::isAvailable()` before any kernel entry.
+`libgeos` does not link `libntsrocq`. Set `NTS_ROCQ_LIB` to the shared
+library path when you have one. See
+[NetTopologySuite.Proofs `oracle/CONSUMERS.md`](https://github.com/grootstebozewolf/NetTopologySuite.Proofs/blob/main/oracle/CONSUMERS.md).
+
+
 This directory contains a differential-test harness that gates GEOS's
 `CircularArcIntersector` against the formally verified reference oracle from
 [NetTopologySuite.Proofs](https://github.com/grootstebozewolf/NetTopologySuite.Proofs)
