@@ -5,6 +5,10 @@
    Keep in sync with that file.  libgeos does not link libntsrocq; callers
    check ntsrocq::RocqNative::isAvailable() before use.
 
+   ABI ledger: grootstebozewolf/NetTopologySuite.Proofs
+     docs/phase5-ffi-abi.md  and  oracle/CONSUMERS.md
+   Independent of OverlayNG Edge clone hygiene (geos#3).
+
    Original header follows.
    ============================================================================
    oracle/cpp/RocqNative.hpp
