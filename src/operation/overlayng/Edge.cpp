@@ -18,6 +18,8 @@
 #include <geos/geom/LineString.h>
 #include <geos/io/WKBWriter.h>
 
+#include <memory>
+
 
 namespace geos {      // geos
 namespace operation { // geos.operation
@@ -34,7 +36,9 @@ Edge::Edge(const std::shared_ptr<const CoordinateSequence>& p_pts, const EdgeSou
     , bDim(OverlayLabel::DIM_UNKNOWN)
     , bDepthDelta(0)
     , bIsHole(false)
-    , pts(p_pts)
+    // Clone so OverlayNG cannot alias caller coordinates
+    // (linear inputs and snap-rounding noding paths).
+    , pts(p_pts ? std::shared_ptr<const CoordinateSequence>(p_pts->clone()) : p_pts)
     , ptsCurved(p_isCurved)
 {
     copyInfo(info);
