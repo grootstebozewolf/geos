@@ -1,11 +1,18 @@
 # Differential testing against the NetTopologySuite.Proofs oracle
 
-In-process Phase 5 FFI (optional): `#include <geos/algorithm/RocqNative.h>`
-and call `ntsrocq::RocqNative::isAvailable()` before any kernel entry.
-`libgeos` does not link `libntsrocq`. Set `NTS_ROCQ_LIB` to the shared
-library path when you have one. See
-[NetTopologySuite.Proofs `oracle/CONSUMERS.md`](https://github.com/grootstebozewolf/NetTopologySuite.Proofs/blob/main/oracle/CONSUMERS.md).
+## Why `RocqNative.h` exists
 
+`include/geos/algorithm/RocqNative.h` is the GEOS copy of the Phase 5
+in-process `libntsrocq` façade. It is **header-only and fully opt-in**:
+`libgeos` does not link `libntsrocq`. Call
+`ntsrocq::RocqNative::isAvailable()` before any kernel entry; it is false
+when the shared library is absent. Override the path with `NTS_ROCQ_LIB`.
+
+This header is independent of OverlayNG coordinate-clone hygiene (that
+change lives on its own PR). The ABI source of truth and the three-language
+consumer map are in
+[NetTopologySuite.Proofs `oracle/CONSUMERS.md`](https://github.com/grootstebozewolf/NetTopologySuite.Proofs/blob/main/oracle/CONSUMERS.md)
+and [`docs/phase5-ffi-abi.md`](https://github.com/grootstebozewolf/NetTopologySuite.Proofs/blob/main/docs/phase5-ffi-abi.md).
 
 This directory contains a differential-test harness that gates GEOS's
 `CircularArcIntersector` against the formally verified reference oracle from
