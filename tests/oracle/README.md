@@ -9,7 +9,8 @@ in-process `libntsrocq` façade. It is **header-only and fully opt-in**:
 when the shared library is absent. Override the path with `NTS_ROCQ_LIB`.
 
 This header is independent of OverlayNG coordinate-clone hygiene (that
-change lives on its own PR). The ABI source of truth and the three-language
+change lives on [geos#3](https://github.com/grootstebozewolf/geos/pull/3)).
+The ABI source of truth and the three-language
 consumer map are in
 [NetTopologySuite.Proofs `oracle/CONSUMERS.md`](https://github.com/grootstebozewolf/NetTopologySuite.Proofs/blob/main/oracle/CONSUMERS.md)
 and [`docs/phase5-ffi-abi.md`](https://github.com/grootstebozewolf/NetTopologySuite.Proofs/blob/main/docs/phase5-ffi-abi.md).
