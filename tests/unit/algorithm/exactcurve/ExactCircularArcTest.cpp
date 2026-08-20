@@ -32,6 +32,8 @@ using geos::geom::LineString;
 
 namespace tut {
 
+// topic: arc
+// Port of JTS 9797c2c4.
 struct test_exact_circular_arc_data {
 };
 
@@ -41,7 +43,7 @@ typedef group::object object;
 group test_exact_circular_arc_group(
     "geos::algorithm::exactcurve::ExactCircularArc");
 
-// Witness: semicircle r=5 length is 5π, not the chord 10.
+// Witness: semicircle (5,0)-(0,5)-(-5,0) length is 5π, not the chord 10.
 template<>
 template<>
 void object::test<1>()
@@ -133,7 +135,7 @@ template<>
 void object::test<8>()
 {
     set_test_name("L1 L2 hard zero on random windows");
-    std::mt19937 rng(0xa7ea0001u);
+    std::mt19937 rng(2817130497u);
     std::uniform_real_distribution<double> box(-100.0, 100.0);
     int l1Hard = 0;
     int l2Hard = 0;
@@ -166,7 +168,7 @@ template<>
 void object::test<9>()
 {
     set_test_name("P1 length at most 1.15x toLinear");
-    std::mt19937 rng(0xa7ea0001u ^ 0x51u);
+    std::mt19937 rng(2817130497u ^ 81u);
     std::uniform_real_distribution<double> box(-100.0, 100.0);
     constexpr int nSample = 4000;
     std::vector<ExactCircularArc> sample;

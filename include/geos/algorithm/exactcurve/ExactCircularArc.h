@@ -23,7 +23,7 @@ namespace algorithm {
 namespace exactcurve {
 
 /**
- * Privileged ExactCurve primitive: one 3-control circular window.
+ * One 3-control circular window.
  *
  * Maintainability: circumcircle lives here so callers do not copy the
  * determinant; colinear triples degrade to an exact chord.

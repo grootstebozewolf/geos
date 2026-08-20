@@ -97,6 +97,7 @@ ExactCircularArc::lengthOf(const CoordinateXY& start,
     return r * directedSweep(cx, cy, start, mid, end);
 }
 
+// Port of JTS 9797c2c4.
 double
 ExactCircularArc::length() const
 {
