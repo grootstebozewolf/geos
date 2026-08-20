@@ -17,6 +17,7 @@
 #include <geos/geom/CircularString.h>
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/GeometryFactory.h>
+#include <geos/geom/LineString.h>
 #include <geos/io/WKTReader.h>
 
 #include <cmath>
@@ -27,6 +28,7 @@ using geos::algorithm::CurveToLineParams;
 using geos::geom::CircularString;
 using geos::geom::CoordinateXY;
 using geos::geom::GeometryFactory;
+using geos::geom::LineString;
 using geos::io::WKTReader;
 
 namespace tut {
@@ -40,7 +42,7 @@ struct test_densifier_anchor_data {
         return wktreader_.read<CircularString>(wkt);
     }
 
-    bool containsExactly(const geos::geom::Geometry& g, const CoordinateXY& anchor)
+    bool containsExactly(const geos::geom::LineString& g, const CoordinateXY& anchor)
     {
         const auto* seq = g.getCoordinatesRO();
         for (std::size_t i = 0; i < seq->size(); ++i) {
