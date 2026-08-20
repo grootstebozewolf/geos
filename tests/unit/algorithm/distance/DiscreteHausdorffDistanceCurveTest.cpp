@@ -78,7 +78,8 @@ void object::test<2>()
     const double got = oriented(
         "CURVEPOLYGON (CIRCULARSTRING (5 0, 0 5, -5 0, 0 -5, 5 0))",
         "CURVEPOLYGON (CIRCULARSTRING (12 0, 7 5, 2 0, 7 -5, 12 0))");
-    ensure(std::fabs(got - 10.0) < 1.0e-9);
+    // |d + r1 − r2| for r=5 discs 7 apart: directed HD is 7, not 10.
+    ensure(std::fabs(got - 7.0) < 1.0e-9);
 }
 
 } // namespace tut
