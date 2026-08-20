@@ -20,7 +20,6 @@
 #include <geos/geom/LineString.h>
 #include <geos/io/WKTReader.h>
 
-#include <cmath>
 #include <memory>
 #include <string>
 
@@ -33,6 +32,8 @@ using geos::io::WKTReader;
 
 namespace tut {
 
+// topic: arc
+// Port of JTS f6347444.
 struct test_densifier_anchor_data {
     GeometryFactory::Ptr factory_ = GeometryFactory::create();
     WKTReader wktreader_;
@@ -61,16 +62,15 @@ typedef group::object object;
 group test_densifier_anchor_group(
     "geos::geom::CircularString::getLinearized::anchors");
 
-// Witness: 15° steps on the unit semicircle put a computed vertex on
-// the mid-control sweep. That vertex must be the supplied (0, 1), not
-// cos(π/2) ≈ 6e-17.
+// Witness: CIRCULARSTRING (1 0, 0 1, -1 0) after getLinearized(0.01)
+// keeps exact (0, 1), not cos(π/2).
 template<>
 template<>
 void object::test<1>()
 {
-    set_test_name("mid control exact on sweep-angle tie");
+    set_test_name("mid control exact at tolerance 0.01");
     auto cs = readCS("CIRCULARSTRING (1 0, 0 1, -1 0)");
-    auto ls = cs->getLinearized(CurveToLineParams::stepSizeDegrees(15));
+    auto ls = cs->getLinearized(CurveToLineParams::maxDeviation(0.01));
     ensure("apex (0,1) survives getLinearized exactly",
            containsExactly(*ls, CoordinateXY{0, 1}));
 }
@@ -79,10 +79,10 @@ template<>
 template<>
 void object::test<2>()
 {
-    set_test_name("mid control exact when it falls between vertices");
+    set_test_name("mid control exact at tolerance 0.012");
     auto cs = readCS("CIRCULARSTRING (1 0, 0 1, -1 0)");
-    auto ls = cs->getLinearized(CurveToLineParams::stepSizeDegrees(16));
-    ensure("apex (0,1) is inserted between samples",
+    auto ls = cs->getLinearized(CurveToLineParams::maxDeviation(0.012));
+    ensure("apex (0,1) is present between samples",
            containsExactly(*ls, CoordinateXY{0, 1}));
 }
 

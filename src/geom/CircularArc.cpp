@@ -383,6 +383,7 @@ CircularArc::addLinearizedPoints(CoordinateSequence& seq, const algorithm::Curve
     // Soundness: cos/sin at π/2 is not (0,1); the control is the sample
     // that was supplied. On a sweep-angle tie the control wins.
     // Performance: one extra distance test per interpolated vertex.
+    // Port of JTS f6347444.
     const CoordinateXY& mid = p1();
     const double midEps = std::max(1.0e-12, radius * 1.0e-9);
     const bool midIsEndpoint = mid.equals(p0()) || mid.equals(p2());
