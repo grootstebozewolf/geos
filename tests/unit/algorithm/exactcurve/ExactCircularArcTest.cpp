@@ -20,8 +20,11 @@
 #include <geos/geom/LineString.h>
 #include <geos/util/IllegalArgumentException.h>
 
+#include <chrono>
 #include <cmath>
+#include <iostream>
 #include <random>
+#include <vector>
 
 using geos::algorithm::exactcurve::ExactCircularArc;
 using geos::geom::CoordinateXY;
@@ -155,6 +158,49 @@ void object::test<8>()
     }
     ensure_equals(l1Hard, 0);
     ensure_equals(l2Hard, 0);
+}
+
+// P1: closed-form length must beat (or stay within 15% of) toLinear densify.
+template<>
+template<>
+void object::test<9>()
+{
+    set_test_name("P1 length at most 1.15x toLinear");
+    std::mt19937 rng(0xa7ea0001u ^ 0x51u);
+    std::uniform_real_distribution<double> box(-100.0, 100.0);
+    constexpr int nSample = 4000;
+    std::vector<ExactCircularArc> sample;
+    sample.reserve(static_cast<std::size_t>(nSample));
+    while (static_cast<int>(sample.size()) < nSample) {
+        ExactCircularArc a(CoordinateXY{box(rng), box(rng)},
+                           CoordinateXY{box(rng), box(rng)},
+                           CoordinateXY{box(rng), box(rng)});
+        if (a.isArc()) {
+            sample.push_back(a);
+        }
+    }
+    for (int i = 0; i < 64; ++i) {
+        (void)sample[static_cast<std::size_t>(i)].length();
+        (void)sample[static_cast<std::size_t>(i)].toLinear(0.01);
+    }
+    using clock = std::chrono::steady_clock;
+    const auto t0 = clock::now();
+    double sink = 0.0;
+    for (const auto& a : sample) {
+        sink += a.length();
+    }
+    const auto t1 = clock::now();
+    for (const auto& a : sample) {
+        sink += a.toLinear(0.01)->getLength();
+    }
+    const auto t2 = clock::now();
+    const auto aNs = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+    const auto dNs = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+    const double ratio = dNs == 0 ? 0.0 : static_cast<double>(aNs) / static_cast<double>(dNs);
+    std::cout << "P1 length/toLinear ns " << aNs << "/" << dNs
+              << " = " << ratio << std::endl;
+    ensure(sink != 0.0);
+    ensure(ratio <= 1.15);
 }
 
 } // namespace tut
