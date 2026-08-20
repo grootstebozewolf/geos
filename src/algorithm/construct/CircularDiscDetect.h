@@ -30,6 +30,8 @@ namespace algorithm {
 namespace construct {
 namespace disc {
 
+// Port of JTS f24cb33d.
+
 using geos::geom::CircularString;
 using geos::geom::CoordinateSequence;
 using geos::geom::CoordinateXY;

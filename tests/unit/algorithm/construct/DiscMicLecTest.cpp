@@ -34,6 +34,8 @@ using geos::io::WKTReader;
 
 namespace tut {
 
+// topic: arc
+// Port of JTS f24cb33d.
 struct test_disc_mic_lec_data {
     PrecisionModel pm;
     GeometryFactory::Ptr gf;
@@ -50,7 +52,8 @@ typedef group::object object;
 group test_disc_mic_lec_group(
     "geos::algorithm::construct::MaximumInscribedCircle::disc");
 
-// Witness: r=5 disc MIC/LEC is 5, not the control-diamond 5/√2.
+// Witness: CURVEPOLYGON (CIRCULARSTRING (5 0, 0 5, -5 0, 0 -5, 5 0))
+// MIC/LEC radius is 5.0, not 5/√2.
 template<>
 template<>
 void object::test<1>()

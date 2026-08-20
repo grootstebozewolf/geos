@@ -59,6 +59,7 @@ MaximumInscribedCircle::MaximumInscribedCircle(const Geometry* polygonal, double
     // Maintainability: disc MIC shares CircularDiscDetect with LEC.
     // Soundness: control-diamond MIC is 5/√2; the disc radius is 5.
     // Performance: certified disc skips the grid.
+    // Port of JTS f24cb33d.
     auto disc = disc::circularDisc(*polygonal);
     if (disc) {
         createResult(CoordinateXY{(*disc)[0], (*disc)[1]},

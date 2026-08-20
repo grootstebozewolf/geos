@@ -60,6 +60,7 @@ LargestEmptyCircle::LargestEmptyCircle(const Geometry* p_obstacles, const Geomet
     // Maintainability: disc LEC shares CircularDiscDetect with MIC.
     // Soundness: convex-hull of control points is the diamond (r = 5/√2).
     // Performance: certified disc skips the grid.
+    // Port of JTS f24cb33d.
     auto disc = disc::certifiedCircle(p_obstacles, p_boundary);
     if (disc) {
         centerPt = CoordinateXY{(*disc)[0], (*disc)[1]};
