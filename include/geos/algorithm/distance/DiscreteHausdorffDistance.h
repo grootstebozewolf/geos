@@ -87,6 +87,11 @@ namespace distance { // geos::algorithm::distance
  *   DHD(A, B) = 22.360679774997898
  *   HD(A, B) ~= 47.8
  * </pre>
+ *
+ * Maintainability: two certified curve pairs share one closed-form gate.
+ * Soundness: control-chord DHD misses the arc apex and two-disc far point.
+ * Performance: those pairs skip densify; every other input stays on vertices.
+ * Port of JTS 0ca71b40.
  */
 class GEOS_DLL DiscreteHausdorffDistance {
 public:
