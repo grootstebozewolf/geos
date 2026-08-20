@@ -91,6 +91,7 @@ namespace distance { // geos::algorithm::distance
  * Maintainability: two certified curve pairs share one closed-form gate.
  * Soundness: control-chord DHD misses the arc apex and two-disc far point.
  * Performance: those pairs skip densify; every other input stays on vertices.
+ * Port of JTS 0ca71b40.
  */
 class GEOS_DLL DiscreteHausdorffDistance {
 public:

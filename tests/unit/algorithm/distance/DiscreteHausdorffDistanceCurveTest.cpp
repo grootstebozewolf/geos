@@ -31,6 +31,8 @@ using geos::io::WKTReader;
 
 namespace tut {
 
+// topic: arc
+// Port of JTS 0ca71b40.
 struct test_dhd_curve_data {
     PrecisionModel pm;
     GeometryFactory::Ptr gf;

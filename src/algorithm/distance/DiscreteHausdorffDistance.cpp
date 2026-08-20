@@ -425,6 +425,7 @@ DiscreteHausdorffDistance::computeOrientedDistance(
     // Soundness: vertex DHD on control chords misses the arc apex
     // (√949/6 − 7/6) and the two-disc far-point (7).
     // Performance: certified pairs skip densify.
+    // Port of JTS 0ca71b40.
     if (computeExactOriented(discreteGeom, geom, p_ptDist)) {
         return;
     }
