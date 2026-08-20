@@ -18,6 +18,8 @@
 #include <geos/geom/CircularArc.h>
 #include <geos/geom/Envelope.h>
 #include <geos/triangulate/quadedge/TrianglePredicate.h>
+#include <algorithm>
+#include <cmath>
 #include <sstream>
 
 using geos::algorithm::CircularArcs;
@@ -376,6 +378,37 @@ CircularArc::addLinearizedPoints(CoordinateSequence& seq, const algorithm::Curve
     const bool hasZ = getCoordinateSequence()->hasZ();
     const bool hasM = getCoordinateSequence()->hasM();
 
+    // Maintainability: keep the supplied mid-control as a vertex so
+    // callers can match on the input coordinates after getLinearized.
+    // Soundness: cos/sin at π/2 is not (0,1); the control is the sample
+    // that was supplied. On a sweep-angle tie the control wins.
+    // Performance: one extra distance test per interpolated vertex.
+    const CoordinateXY& mid = p1();
+    const double midEps = std::max(1.0e-12, radius * 1.0e-9);
+    const bool midIsEndpoint = mid.equals(p0()) || mid.equals(p2());
+    bool midEmitted = midIsEndpoint;
+    const std::size_t firstNew = seq.size();
+
+    auto sweepFromP0 = [&](const CoordinateXY& q) {
+        double t = std::atan2(q.y - center.y, q.x - center.x) - theta0();
+        if (!isCCW) {
+            t = -t;
+        }
+        while (t < 0.0) {
+            t += 2.0 * MATH_PI;
+        }
+        while (t >= 2.0 * MATH_PI) {
+            t -= 2.0 * MATH_PI;
+        }
+        return t;
+    };
+
+    auto emitExactMid = [&]() {
+        seq.add(*getCoordinateSequence(), getCoordinatePosition() + 1,
+                getCoordinatePosition() + 1);
+        midEmitted = true;
+    };
+
     for (int i = 1; i < nSegments; i++) {
         const int j = isCCW ? i: nSegments - i;
         const double theta = startAngle + j*adjStepRad;
@@ -387,7 +420,32 @@ CircularArc::addLinearizedPoints(CoordinateSequence& seq, const algorithm::Curve
                                         center, isCCW, pt, pt.z, pt.m);
         }
 
+        if (!midEmitted && pt.distance(mid) <= midEps) {
+            emitExactMid();
+            continue;
+        }
+
         seq.add(pt);
+    }
+
+    if (!midEmitted) {
+        const double midSweep = sweepFromP0(mid);
+        std::size_t insertAt = seq.size();
+        for (std::size_t k = firstNew; k < seq.size(); ++k) {
+            if (sweepFromP0(seq.getAt<CoordinateXY>(k)) >= midSweep) {
+                insertAt = k;
+                break;
+            }
+        }
+        if (insertAt == seq.size()) {
+            emitExactMid();
+        }
+        else {
+            CoordinateXYZM midPt;
+            getCoordinateSequence()->getAt(getCoordinatePosition() + 1, midPt);
+            seq.add(midPt, insertAt);
+            midEmitted = true;
+        }
     }
 
     seq.add(*getCoordinateSequence(), getCoordinatePosition() + 2, getCoordinatePosition() + 2);
