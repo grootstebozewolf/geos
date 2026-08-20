@@ -24,7 +24,6 @@
 #include <geos/geom/Curve.h>
 #include <geos/geom/CurvePolygon.h>
 #include <geos/geom/LineString.h>
-#include <geos/geom/MultiSurface.h>
 
 #include <typeinfo>
 #include <cassert>
@@ -424,7 +423,7 @@ DiscreteHausdorffDistance::computeOrientedDistance(
 {
     // Maintainability: two named pairs share one closed-form gate.
     // Soundness: vertex DHD on control chords misses the arc apex
-    // (√949/6 − 7/6) and the two-disc far-point (10).
+    // (√949/6 − 7/6) and the two-disc far-point (7).
     // Performance: certified pairs skip densify.
     if (computeExactOriented(discreteGeom, geom, p_ptDist)) {
         return;
