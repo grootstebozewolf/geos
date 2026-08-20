@@ -91,11 +91,11 @@ inline std::optional<std::array<double, 3>>
 fullCircle(const Geometry& ring)
 {
     if (ring.getGeometryTypeId() != geos::geom::GEOS_CIRCULARSTRING
-            || ring.isEmpty() || !ring.isClosed() || ring.getNumPoints() < 5) {
+            || ring.isEmpty() || ring.getNumPoints() < 5) {
         return std::nullopt;
     }
     const auto* cs = dynamic_cast<const CircularString*>(&ring);
-    if (!cs) {
+    if (!cs || !cs->isClosed()) {
         return std::nullopt;
     }
     std::unique_ptr<CoordinateSequence> seq(cs->getCoordinates());
