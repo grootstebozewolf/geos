@@ -19,6 +19,7 @@
 
 #include <geos/algorithm/construct/MaximumInscribedCircle.h>
 #include <geos/algorithm/construct/ExactMaxInscribedCircle.h>
+#include "CircularDiscDetect.h"
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/CoordinateSequence.h>
 #include <geos/geom/Envelope.h>
@@ -34,6 +35,7 @@
 
 #include <typeinfo> // for dynamic_cast
 #include <cassert>
+#include <memory>
 
 using namespace geos::geom;
 
@@ -46,21 +48,33 @@ namespace construct { // geos.algorithm.construct
 /* public */
 MaximumInscribedCircle::MaximumInscribedCircle(const Geometry* polygonal, double p_tolerance)
     : inputGeom(polygonal)
-    , inputGeomBoundary(polygonal->getBoundary())
     , tolerance(p_tolerance)
-    , indexedDistance(inputGeomBoundary.get())
-    , ptLocator(*polygonal)
     , factory(polygonal->getFactory())
     , done(false)
 {
+    if (polygonal->isEmpty()) {
+        throw util::IllegalArgumentException("Empty input is not supported");
+    }
+
+    // Maintainability: disc MIC shares CircularDiscDetect with LEC.
+    // Soundness: control-diamond MIC is 5/√2; the disc radius is 5.
+    // Performance: certified disc skips the grid.
+    auto disc = disc::circularDisc(*polygonal);
+    if (disc) {
+        createResult(CoordinateXY{(*disc)[0], (*disc)[1]},
+                     CoordinateXY{(*disc)[0] + (*disc)[2], (*disc)[1]});
+        done = true;
+        return;
+    }
+
     if (!(typeid(*polygonal) == typeid(Polygon) ||
           typeid(*polygonal) == typeid(MultiPolygon))) {
         throw util::IllegalArgumentException("Input must be a Polygon or MultiPolygon");
     }
 
-    if (polygonal->isEmpty()) {
-        throw util::IllegalArgumentException("Empty input is not supported");
-    }
+    inputGeomBoundary = polygonal->getBoundary();
+    indexedDistance = std::make_unique<IndexedFacetDistance>(inputGeomBoundary.get());
+    ptLocator = std::make_unique<IndexedPointInAreaLocator>(*polygonal);
 }
 
 
@@ -163,9 +177,9 @@ MaximumInscribedCircle::distanceToBoundary(double x, double y)
 double
 MaximumInscribedCircle::distanceToBoundary(const Point& pt)
 {
-    double dist = indexedDistance.distance(&pt);
+    double dist = indexedDistance->distance(&pt);
     // double dist = inputGeomBoundary->distance(pt.get());
-    bool isOutside = (Location::EXTERIOR == ptLocator.locate(pt.getCoordinate()));
+    bool isOutside = (Location::EXTERIOR == ptLocator->locate(pt.getCoordinate()));
     if (isOutside) return -dist;
     return dist;
 }
@@ -325,7 +339,7 @@ MaximumInscribedCircle::computeApproximation()
 
     // compute radius point
     std::unique_ptr<Point> centerPoint(factory->createPoint(centerPt));
-    const auto& nearestPts = indexedDistance.nearestPoints(centerPoint.get());
+    const auto& nearestPts = indexedDistance->nearestPoints(centerPoint.get());
     radiusPt = nearestPts->getAt(0);
 
     // flag computation

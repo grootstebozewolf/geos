@@ -192,8 +192,8 @@ private:
     const geom::Geometry* inputGeom;
     std::unique_ptr<geom::Geometry> inputGeomBoundary;
     double tolerance;
-    IndexedFacetDistance indexedDistance;
-    IndexedPointInAreaLocator ptLocator;
+    std::unique_ptr<IndexedFacetDistance> indexedDistance;
+    std::unique_ptr<IndexedPointInAreaLocator> ptLocator;
     const geom::GeometryFactory* factory;
     bool done;
     geom::CoordinateXY centerPt;
