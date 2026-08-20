@@ -58,6 +58,7 @@
 #include <geos/io/WKBWriter.h>
 #include <geos/io/WKTWriter.h>
 #include <geos/version.h>
+#include "CircularDiscTouch.h"
 
 #include <algorithm>
 #include <string>
@@ -277,6 +278,13 @@ Geometry::touches(const Geometry* g) const
         return false;
     }
 #endif
+
+    // Maintainability: T-ext shares one d² gate with relate().
+    // Soundness: control diamonds miss the (4, 3) kiss; T-ext is FF2F01212.
+    // Performance: certified pair skips RelateNG noding.
+    if (auto certified = disc_touch::tryDiscExternalTouch(*this, *g)) {
+        return certified->isTouches(getDimension(), g->getDimension());
+    }
 
 #if USE_RELATENG
     return operation::relateng::RelateNG::touches(this, g);
@@ -527,6 +535,12 @@ Geometry::equals(const Geometry* g) const
 std::unique_ptr<IntersectionMatrix>
 Geometry::relate(const Geometry* other) const
 {
+    // Maintainability: T-ext shares one d² gate with touches().
+    // Soundness: T-ext is d² == (r1+r2)²; control diamonds miss (4, 3).
+    // Performance: certified pair skips RelateNG noding.
+    if (auto certified = disc_touch::tryDiscExternalTouch(*this, *other)) {
+        return certified;
+    }
 #if USE_RELATENG
     return operation::relateng::RelateNG::relate(this, other);
 #else
