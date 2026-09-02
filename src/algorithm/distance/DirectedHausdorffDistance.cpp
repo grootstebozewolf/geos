@@ -270,6 +270,9 @@ bool
 DirectedHausdorffDistance::isBeyond(
     const Envelope& envA, const Envelope& envB, double maxDistance)
 {
+    if (envA.isNull() || envB.isNull()) {
+        return false;
+    }
     return envA.getMinX() < envB.getMinX() - maxDistance
         || envA.getMinY() < envB.getMinY() - maxDistance
         || envA.getMaxX() > envB.getMaxX() + maxDistance
@@ -395,6 +398,9 @@ bool
 DirectedHausdorffDistance::isFullyWithinDistance(
     const Geometry& geom, double maxDistance, double tolerance)
 {
+    if (geom.isEmpty() || target.isEmpty()) {
+        return false;
+    }
     if (isBeyond(*geom.getEnvelopeInternal(), *target.getEnvelopeInternal(), maxDistance)) {
         return false;
     }
