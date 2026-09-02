@@ -15,7 +15,6 @@
 #include <geos/io/WKTReader.h>
 #include <geos/util/IllegalArgumentException.h>
 
-#include <chrono>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -282,7 +281,11 @@ void object::test<10>()
         2.233);
 }
 
-// 11 — identical long linestring finishes quickly (JTS isSameOrCollinear)
+// 11 — identical long linestring is zero (JTS isSameOrCollinear)
+//
+// Same-geometry queries skip the vertex walk via TargetDistance::isSameOrCollinear.
+// Distance is the assertion. A wall-clock bound flakes under Valgrind memcheck
+// (CI Debug all-unit-tests), which is why JTS's timed canary is not ported.
 template<>
 template<>
 void object::test<11>()
@@ -294,13 +297,8 @@ void object::test<11>()
     }
     GeomPtr line(gf->createLineString(std::move(cs)));
 
-    auto t0 = std::chrono::steady_clock::now();
     double dist = DirectedHausdorffDistance::distance(*line, *line);
-    auto t1 = std::chrono::steady_clock::now();
-
     ensure(std::fabs(dist) <= TOLERANCE);
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-    ensure(ms < 2000);
 }
 
 } // namespace tut
