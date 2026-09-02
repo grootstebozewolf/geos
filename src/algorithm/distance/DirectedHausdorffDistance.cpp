@@ -68,8 +68,7 @@ constexpr double FULLY_WITHIN_TOLERANCE_FACTOR = 10 * AUTO_TOLERANCE_FACTOR;
 class DirectedHausdorffDistance::TargetDistance {
 public:
     explicit TargetDistance(const Geometry& geom)
-        : target(geom)
-        , distanceToFacets(&geom)
+        : distanceToFacets(&geom)
         , isArea(geom.getDimension() >= Dimension::A)
     {
         if (isArea) {
@@ -122,7 +121,6 @@ public:
     }
 
 private:
-    const Geometry& target;
     IndexedFacetDistance distanceToFacets;
     bool isArea;
     std::unique_ptr<IndexedPointInPolygonsLocator> ptInArea;
