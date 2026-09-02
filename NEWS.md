@@ -3,8 +3,8 @@
 
 - New things:
   - Add DirectedHausdorffDistance and C API GEOSDirectedHausdorffDistance /
-    GEOSSymmetricHausdorffDistance (locus max-min; does not change the
-    discrete GEOSHausdorffDistance) (Jeroen Bloemscheer, JTS 1182 / Martin Davis)
+    GEOSSymmetricHausdorffDistance (locus max-min; discrete GEOSHausdorffDistance
+    unchanged) (Martin Davis, Jeroen Bloemscheer)
 
 - Fixes/Improvements:
   -
