@@ -19,6 +19,7 @@
 
 #include <geos/algorithm/construct/LargestEmptyCircle.h>
 #include <geos/algorithm/construct/MaximumInscribedCircle.h>
+#include "CircularDiscDetect.h"
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/CoordinateSequence.h>
 #include <geos/geom/Envelope.h>
@@ -55,6 +56,25 @@ LargestEmptyCircle::LargestEmptyCircle(const Geometry* p_obstacles, const Geomet
     if (obstacles->isEmpty()) {
         throw util::IllegalArgumentException("Empty obstacles geometry is not supported");
     }
+
+    // Maintainability: disc LEC shares CircularDiscDetect with MIC.
+    // Soundness: convex-hull of control points is the diamond (r = 5/√2).
+    // Performance: certified disc skips the grid.
+    // Port of JTS f24cb33d.
+    auto disc = disc::certifiedCircle(p_obstacles, p_boundary);
+    if (disc) {
+        centerPt = CoordinateXY{(*disc)[0], (*disc)[1]};
+        radiusPt = CoordinateXY{(*disc)[0] + (*disc)[2], (*disc)[1]};
+        done = true;
+        if (!p_boundary || p_boundary->isEmpty()) {
+            boundary = factory->createPolygon();
+        }
+        else {
+            boundary = p_boundary->clone();
+        }
+        return;
+    }
+
     if (! p_boundary || p_boundary->isEmpty()) {
         boundary = obstacles->convexHull();
     }
