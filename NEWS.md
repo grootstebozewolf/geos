@@ -1,6 +1,11 @@
 ## Changes in 3.16.0
 2027-xx-xx
 
+- New things:
+  - Add DirectedHausdorffDistance and C API GEOSDirectedHausdorffDistance /
+    GEOSSymmetricHausdorffDistance (locus max-min; does not change the
+    discrete GEOSHausdorffDistance)
+
 - Fixes/Improvements:
   -
 
