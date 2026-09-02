@@ -113,6 +113,11 @@ public:
     /// \brief Distance from a segment to the target facets.
     double distance(const geom::CoordinateXY& p0, const geom::CoordinateXY& p1) const;
 
+    /// \brief Nearest facet location to a coordinate (JTS nearestLocation).
+    ///
+    /// Supporting method for DirectedHausdorffDistance identical/collinear skip.
+    FacetNearestLocation nearestLocation(const geom::CoordinateXY& p) const;
+
 
 private:
     struct FacetDistance {

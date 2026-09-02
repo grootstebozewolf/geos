@@ -4,6 +4,7 @@
  * http://geos.osgeo.org
  *
  * Copyright (C) 2026 Martin Davis
+ * Copyright (C) 2026 Jeroen Bloemscheer
  *
  * This is free software; you can redistribute and/or modify it under
  * the terms of the GNU Lesser General Public Licence as published
@@ -110,6 +111,14 @@ public:
             return false;
         }
         return isInterior(p0);
+    }
+
+    /// JTS isSameOrCollinear: both endpoints project onto the same target segment.
+    bool isSameOrCollinear(const CoordinateXY& p0, const CoordinateXY& p1)
+    {
+        auto f0 = distanceToFacets.nearestLocation(p0);
+        auto f1 = distanceToFacets.nearestLocation(p1);
+        return f0.isSameSegment(f1);
     }
 
 private:
@@ -572,9 +581,11 @@ DirectedHausdorffDistance::computeForEdges(
                 break;
             }
         }
-        // JTS skips further bisection of identical/collinear zero-distance
-        // segments via CoordinateSequenceLocation. GEOS does not yet have
-        // that helper; bisection still converges to the auto-tolerance.
+        if (segMaxBound.getMaxDistance() == 0.0
+            && targetDistance->isSameOrCollinear(
+                segMaxBound.getEndpoint(0), segMaxBound.getEndpoint(1))) {
+            continue;
+        }
         if (tolerance > 0 && segMaxBound.getLength() > tolerance) {
             auto bisects = segMaxBound.bisect(*targetDistance);
             filter.addNonInterior(bisects[0]);

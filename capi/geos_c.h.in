@@ -4143,6 +4143,9 @@ extern int GEOS_DLL GEOSHausdorffDistanceDensifyWithPoints(
 * Empty inputs write NaN. This is not GEOSHausdorffDistance
 * (that API is discrete since 3.2).
 *
+* Uses automatic map-unit tolerance (query envelope diameter / 1e4).
+* Map-unit tolerance overloads exist only on the C++ class.
+*
 * @INPUT_CURVES_CONVERTED_TO_LINES@
 *
 * \param[in] g1 Query geometry A
@@ -4159,7 +4162,8 @@ extern int GEOS_DLL GEOSDirectedHausdorffDistance(
 
 /**
 * Directed Hausdorff distance h(A,B) and a realizing point pair
-* [point on A, nearest point on B].
+* [point on A, nearest point on B]. Automatic map-unit tolerance only
+* (see GEOSDirectedHausdorffDistance).
 *
 * @INPUT_CURVES_CONVERTED_TO_LINES@
 *
@@ -4177,6 +4181,7 @@ extern int GEOS_DLL GEOSDirectedHausdorffDistanceWithPoints(
 /**
 * True if every point of g1 lies within maxDistance of g2
 * (equivalently, h(A,B) <= maxDistance). Empty query is not within.
+* Automatic map-unit tolerance only (see GEOSDirectedHausdorffDistance).
 *
 * @INPUT_CURVES_CONVERTED_TO_LINES@
 *
@@ -4192,6 +4197,7 @@ extern int GEOS_DLL GEOSDirectedHausdorffDistanceWithin(
 /**
 * Symmetric Hausdorff distance max(h(A,B), h(B,A)).
 * New name so it cannot steal GEOSHausdorffDistance (discrete).
+* Automatic map-unit tolerance only (see GEOSDirectedHausdorffDistance).
 *
 * @INPUT_CURVES_CONVERTED_TO_LINES@
 *

@@ -15,6 +15,7 @@
 #include <geos/io/WKTReader.h>
 #include <geos/util/IllegalArgumentException.h>
 
+#include <chrono>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -243,6 +244,9 @@ void object::test<8>()
 }
 
 // 9 — discrete under-estimate witness (the grill pair)
+// On the spike (100 0)–(10 100), min-distance to B's two arms is equal at
+// t = 11/19: point (910/19, 1100/19), distance 910/19 ≈ 47.89473684210526.
+// Auto-tolerance is envelope diameter / 1e4 ≈ 0.014.
 template<>
 template<>
 void object::test<9>()
@@ -256,9 +260,47 @@ void object::test<9>()
     double locus = DirectedHausdorffDistance::hausdorffDistance(*g1, *g2);
 
     ensure(discrete <= 22.360679774997898 + 1e-9);
-    // Locus HD is nearer 47.8 than 22.36.
-    ensure(std::fabs(locus - 47.8) < std::fabs(locus - 22.36));
-    ensure(locus > 40.0);
+    constexpr double LOCUS_HD = 910.0 / 19.0;
+    constexpr double LOCUS_TOL = 0.05;
+    ensure(std::fabs(locus - LOCUS_HD) <= LOCUS_TOL);
+}
+
+// 10 — polygon query: non-zero HD attained on the boundary
+// (JTS testPolygonLineCrossingBoundaryResult). Test 7's nested 0 would
+// also pass if edges were skipped; this pair cannot.
+template<>
+template<>
+void object::test<10>()
+{
+    checkDistanceLine(
+        "POLYGON ((2 8, 8 2, 2 1, 2 8))",
+        "LINESTRING (6 5, 4 7, 0 0, 8 4)",
+        "LINESTRING (2 8, 3.9384615384615387 6.892307692307693)");
+    checkDistance(
+        "POLYGON ((2 8, 8 2, 2 1, 2 8))",
+        "LINESTRING (6 5, 4 7, 0 0, 8 4)",
+        2.233);
+}
+
+// 11 — identical long linestring finishes quickly (JTS isSameOrCollinear)
+template<>
+template<>
+void object::test<11>()
+{
+    const std::size_t n = 2000;
+    auto cs = std::make_unique<geos::geom::CoordinateSequence>();
+    for (std::size_t i = 0; i < n; ++i) {
+        cs->add(geos::geom::Coordinate(static_cast<double>(i), 0.0));
+    }
+    GeomPtr line(gf->createLineString(std::move(cs)));
+
+    auto t0 = std::chrono::steady_clock::now();
+    double dist = DirectedHausdorffDistance::distance(*line, *line);
+    auto t1 = std::chrono::steady_clock::now();
+
+    ensure(std::fabs(dist) <= TOLERANCE);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+    ensure(ms < 2000);
 }
 
 } // namespace tut

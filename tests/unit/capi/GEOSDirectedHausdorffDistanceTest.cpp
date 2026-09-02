@@ -37,8 +37,10 @@ void object::test<1>()
     ensure_equals(GEOSSymmetricHausdorffDistance(geom1_, geom2_, &symmetric), 1);
 
     ensure(discrete <= 22.360679774997898 + 1e-9);
-    ensure(std::fabs(directed - 47.8) < std::fabs(directed - 22.36));
-    ensure(std::fabs(symmetric - 47.8) < std::fabs(symmetric - 22.36));
+    constexpr double LOCUS_HD = 910.0 / 19.0;
+    constexpr double LOCUS_TOL = 0.05;
+    ensure(std::fabs(directed - LOCUS_HD) <= LOCUS_TOL);
+    ensure(std::fabs(symmetric - LOCUS_HD) <= LOCUS_TOL);
 }
 
 template<>
