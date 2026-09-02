@@ -61,18 +61,18 @@ void object::test<3>()
 {
     set_test_name("WithPoints realizing pair");
 
-    geom1_ = GEOSGeomFromWKT("LINESTRING (0 0, 2 0)");
-    geom2_ = GEOSGeomFromWKT("LINESTRING (0 0, 2 1)");
+    geom1_ = GEOSGeomFromWKT("POINT (0 0)");
+    geom2_ = GEOSGeomFromWKT("POINT (3 4)");
 
     double dist = 0.0;
     double p1x = 0, p1y = 0, p2x = 0, p2y = 0;
     ensure_equals(GEOSDirectedHausdorffDistanceWithPoints(
                       geom1_, geom2_, &dist, &p1x, &p1y, &p2x, &p2y), 1);
-    ensure_distance(dist, 1.0, 1e-9);
-    ensure_equals(p1x, 2.0);
+    ensure_distance(dist, 5.0, 1e-12);
+    ensure_equals(p1x, 0.0);
     ensure_equals(p1y, 0.0);
-    ensure_equals(p2x, 2.0);
-    ensure_equals(p2y, 1.0);
+    ensure_equals(p2x, 3.0);
+    ensure_equals(p2y, 4.0);
 }
 
 template<>
