@@ -363,6 +363,16 @@ WKTReader::readGeometryTaggedText(StringTokenizer* tokenizer, OrdinateSet& ordin
         geom = readGeometryCollectionText(tokenizer, newFlags);
     } else if (type == "EMPTY" && emptyType != nullptr) {
         return geometryFactory->createEmptyGeometry(*emptyType, newFlags.hasZ(), newFlags.hasM());
+    } else if (isTypeName(type, "CLOTHOID")
+            || isTypeName(type, "CIRCLE")
+            || isTypeName(type, "GEODESICSTRING")
+            || isTypeName(type, "NURBSCURVE")
+            || isTypeName(type, "SPIRALCURVE")) {
+        // Instantiable ST_Curve subtypes in ISO/IEC 13249-3 §4.2.1.
+        // Not optional extras. Named refuse until a carrier exists.
+        throw ParseException(
+            "SQL/MM type is not optional (ISO/IEC 13249-3 §4.2.1) and is not implemented",
+            type);
     } else {
         throw ParseException("Unknown type", type);
     }

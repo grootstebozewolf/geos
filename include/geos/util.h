@@ -67,7 +67,8 @@ template<typename T>
 void ensureNoCurvedComponents(const T& geom)
 {
     if (geom.hasCurvedComponents()) {
-        throw UnsupportedOperationException("Curved geometry types are not supported.");
+        throw UnsupportedOperationException(
+            "Curved geometry types are not supported. Call getLinearized first.");
     }
 }
 

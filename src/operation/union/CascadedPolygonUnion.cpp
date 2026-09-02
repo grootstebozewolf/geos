@@ -205,11 +205,15 @@ CascadedPolygonUnion::restrictToSurfaces(std::unique_ptr<geom::Geometry> g)
             return !cmp->isPolygonal();
         }), components.end());
 
-        const bool hasCurves = std::any_of(components.begin(), components.end(), [](const auto & cmp) {
-            return cmp->hasCurvedComponents();
+        // Type identity (ISO/IEC 13249-3): an all-linear CurvePolygon
+        // still has curved *types*. hasCurvedComponents() would silently
+        // pack those members into MultiPolygon. Named getLinearized is
+        // the only allowed linear fallback.
+        const bool hasCurveTypes = std::any_of(components.begin(), components.end(), [](const auto & cmp) {
+            return cmp->hasCurvedTypes();
         });
 
-        if (hasCurves) {
+        if (hasCurveTypes) {
             return gfact->createMultiSurface(std::move(components));
         }
         return gfact->createMultiPolygon(std::move(components));

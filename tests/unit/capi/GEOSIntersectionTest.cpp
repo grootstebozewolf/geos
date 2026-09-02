@@ -195,5 +195,51 @@ void object::test<10>()
     ensure_geometry_equals(result_, geom1_, 1e-8);
 }
 
+template<>
+template<>
+void object::test<11>()
+{
+    set_test_name("SQL/MM type honesty: overlay does not flatten CC / CP / MC / MS");
+
+    geom1_ = fromWKT("COMPOUNDCURVE ((0 0, 1 0), CIRCULARSTRING (1 0, 1 1, 0 1))");
+    geom2_ = fromWKT("POINT (0 0)");
+    result_ = GEOSIntersection(geom1_, geom2_);
+    ensure(result_);
+    ensure_equals(GEOSGeomTypeId(result_), GEOS_POINT);
+    GEOSGeom_destroy(result_);
+    result_ = nullptr;
+
+    GEOSGeom_destroy(geom1_);
+    geom1_ = fromWKT("CURVEPOLYGON (LINESTRING (0 0, 2 0, 2 2, 0 2, 0 0))");
+    GEOSGeom_destroy(geom2_);
+    geom2_ = fromWKT("CURVEPOLYGON (LINESTRING (1 1, 3 1, 3 3, 1 3, 1 1))");
+    result_ = GEOSUnion(geom1_, geom2_);
+    ensure(result_);
+    ensure(GEOSGeomTypeId(result_) != GEOS_POLYGON);
+    ensure(GEOSGeomTypeId(result_) != GEOS_MULTIPOLYGON);
+    GEOSGeom_destroy(result_);
+    result_ = nullptr;
+
+    GEOSGeom_destroy(geom1_);
+    geom1_ = fromWKT("MULTICURVE (CIRCULARSTRING (0 0, 1 1, 2 0), (3 0, 4 0))");
+    GEOSGeom_destroy(geom2_);
+    geom2_ = fromWKT("POINT (10 10)");
+    result_ = GEOSUnion(geom1_, geom2_);
+    ensure(result_);
+    ensure(GEOSGeomTypeId(result_) != GEOS_MULTILINESTRING);
+    ensure(GEOSGeomTypeId(result_) != GEOS_LINESTRING);
+    GEOSGeom_destroy(result_);
+    result_ = nullptr;
+
+    GEOSGeom_destroy(geom1_);
+    geom1_ = fromWKT("MULTISURFACE (CURVEPOLYGON (LINESTRING (0 0, 1 0, 1 1, 0 1, 0 0)))");
+    GEOSGeom_destroy(geom2_);
+    geom2_ = fromWKT("MULTISURFACE (CURVEPOLYGON (LINESTRING (2 2, 3 2, 3 3, 2 3, 2 2)))");
+    result_ = GEOSUnion(geom1_, geom2_);
+    ensure(result_);
+    ensure(GEOSGeomTypeId(result_) != GEOS_MULTIPOLYGON);
+    ensure(GEOSGeomTypeId(result_) != GEOS_POLYGON);
+}
+
 } // namespace tut
 

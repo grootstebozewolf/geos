@@ -121,6 +121,9 @@ private:
      *
      * Extracts the [Surfaces](@ref geom::Surface) from the input
      * and returns them as an appropriate polygonal geometry.
+     * SQL/MM type identity (ISO/IEC 13249-3): CurvePolygon /
+     * MultiSurface stay those types even when rings have no arcs.
+     * Named getLinearized is the only allowed linear fallback.
      *
      * If the input is already a surface, it is returned unchanged.
      *
