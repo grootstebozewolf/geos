@@ -12,6 +12,9 @@
   - Add GEOSMinimumSpanningTree (Paul Ramsey)
   - Add GEOSCoverageEdges (Paul Ramsey)
   - Add new C API functions for Hausdorff distance (GH-1352, Sven Jensen)
+  - Add DirectedHausdorffDistance and C API GEOSDirectedHausdorffDistance /
+    GEOSSymmetricHausdorffDistance (locus max-min; discrete GEOSHausdorffDistance
+    unchanged) (Martin Davis, Jeroen Bloemscheer)
   - Add GEOSSubdivideByGrid (GH-1232, Dan Baston)
   - Add support for curved geometries to the following operations:
     - BoundaryOp (GH-1394, Dan Baston)
