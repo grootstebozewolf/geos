@@ -108,8 +108,8 @@ IndexedFacetDistance::isWithinDistance(const Geometry* g, double maxDistance) co
     return cachedTree->isWithinDistance<FacetDistance>(*tree2, maxDistance);
 }
 
-geom::Coordinate
-IndexedFacetDistance::nearestPoint(const geom::CoordinateXY& p) const
+FacetNearestLocation
+IndexedFacetDistance::nearestLocation(const geom::CoordinateXY& p) const
 {
     CoordinateSequence seq{CoordinateXY(p.x, p.y)};
     FacetSequence query(&seq, 0, 1);
@@ -119,8 +119,13 @@ IndexedFacetDistance::nearestPoint(const geom::CoordinateXY& p) const
     if (!nearest) {
         throw util::GEOSException("Cannot calculate IndexedFacetDistance on empty geometries.");
     }
-    auto locs = nearest->nearestLocations(query);
-    return locs[0];
+    return nearest->nearestLocation(p);
+}
+
+geom::Coordinate
+IndexedFacetDistance::nearestPoint(const geom::CoordinateXY& p) const
+{
+    return nearestLocation(p).pt;
 }
 
 double

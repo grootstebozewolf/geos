@@ -4,6 +4,7 @@
  * http://geos.osgeo.org
  *
  * Copyright (C) 2026 Martin Davis
+ * Copyright (C) 2026 Jeroen Bloemscheer
  *
  * This is free software; you can redistribute and/or modify it under
  * the terms of the GNU Lesser General Public Licence as published
@@ -65,8 +66,14 @@ namespace distance {
  *
  * The class-comment formula in JTS that writes max_a (max_b ...)
  * is farthest-pair; the algorithm implemented here is max-min.
+ * farthestPoints keeps the JTS name but returns the max-min realizing pair.
+ *
+ * Mixed-dimension collections follow JTS: only getDimension() == P
+ * routes to computeForPoints. A GeometryCollection of points and
+ * lines drops the points (JTS TODO: handle mixed geoms with points).
  *
  * \author Martin Davis
+ * \author Jeroen Bloemscheer (GEOS port)
  */
 class GEOS_DLL DirectedHausdorffDistance {
 public:

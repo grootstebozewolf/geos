@@ -14,7 +14,7 @@
   - Add new C API functions for Hausdorff distance (GH-1352, Sven Jensen)
   - Add DirectedHausdorffDistance and C API GEOSDirectedHausdorffDistance /
     GEOSSymmetricHausdorffDistance (locus max-min; does not change the
-    discrete GEOSHausdorffDistance)
+    discrete GEOSHausdorffDistance) (Jeroen Bloemscheer, JTS 1182 / Martin Davis)
   - Add GEOSSubdivideByGrid (GH-1232, Dan Baston)
   - Add support for curved geometries to the following operations:
     - BoundaryOp (GH-1394, Dan Baston)
