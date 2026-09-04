@@ -14,6 +14,7 @@
 #include <tut/tut_macros.hpp>
 
 #include <geos/algorithm/exactcurve/ExactCircularArc.h>
+#include <geos/algorithm/exactcurve/ExactCurve.h>
 #include <geos/constants.h>
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/Geometry.h>
@@ -27,6 +28,7 @@
 #include <vector>
 
 using geos::algorithm::exactcurve::ExactCircularArc;
+using geos::algorithm::exactcurve::ExactCurve;
 using geos::geom::CoordinateXY;
 using geos::geom::LineString;
 
@@ -203,6 +205,34 @@ void object::test<9>()
               << " = " << ratio << std::endl;
     ensure(sink != 0.0);
     ensure(ratio <= 1.15);
+}
+
+template<>
+template<>
+void object::test<10>()
+{
+    set_test_name("ExactCircularArc is-a ExactCurve");
+    ExactCircularArc a(CoordinateXY{5, 0}, CoordinateXY{0, 5}, CoordinateXY{-5, 0});
+    const ExactCurve& curve = a;
+    const ExactCurve* p = &a;
+    ensure(curve.isExact());
+    ensure(p->isExact());
+    ensure(curve.getStart().x == 5.0);
+    ensure(curve.getEnd().x == -5.0);
+    ensure(std::fabs(curve.length() - 5.0 * geos::MATH_PI) < 1.0e-12);
+    const CoordinateXY mid = curve.pointAt(0.5);
+    ensure(std::fabs(mid.x) < 1.0e-12);
+    ensure(std::fabs(mid.y - 5.0) < 1.0e-12);
+    auto lin = curve.toLinear(0.01);
+    const auto* ls = dynamic_cast<const LineString*>(lin.get());
+    ensure(ls != nullptr);
+    ensure(ls->getNumPoints() > 2);
+
+    ExactCircularArc chord(CoordinateXY{0, 0}, CoordinateXY{1, 0}, CoordinateXY{3, 0});
+    const ExactCurve& chordCurve = chord;
+    ensure(!chord.isArc());
+    ensure(chordCurve.isExact());
+    ensure(std::fabs(chordCurve.length() - 3.0) < 1.0e-12);
 }
 
 } // namespace tut

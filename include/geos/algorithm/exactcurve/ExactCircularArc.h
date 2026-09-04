@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <geos/algorithm/exactcurve/ExactCurve.h>
 #include <geos/export.h>
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/Geometry.h>
@@ -31,7 +32,7 @@ namespace exactcurve {
  * Performance: static lengthOf is one hypot plus one multiply.
  * Port of JTS 9797c2c4.
  */
-class GEOS_DLL ExactCircularArc {
+class GEOS_DLL ExactCircularArc : public ExactCurve {
 public:
     ExactCircularArc(const geom::CoordinateXY& start,
                      const geom::CoordinateXY& mid,
@@ -41,23 +42,23 @@ public:
                            const geom::CoordinateXY& mid,
                            const geom::CoordinateXY& end);
 
-    const geom::CoordinateXY& getStart() const { return m_start; }
+    const geom::CoordinateXY& getStart() const override { return m_start; }
     const geom::CoordinateXY& getMid() const { return m_mid; }
-    const geom::CoordinateXY& getEnd() const { return m_end; }
+    const geom::CoordinateXY& getEnd() const override { return m_end; }
 
     bool isArc() const { return m_arc; }
     bool isCcw() const { return m_ccw; }
-    bool isExact() const { return true; }
+    bool isExact() const override { return true; }
 
     double radius() const { return m_r; }
     double sweep() const { return m_sweep; }
-    double length() const;
+    double length() const override;
     double chordLength() const { return m_start.distance(m_end); }
 
     geom::CoordinateXY center() const;
 
-    geom::CoordinateXY pointAt(double t) const;
-    std::unique_ptr<geom::Geometry> toLinear(double tolerance) const;
+    geom::CoordinateXY pointAt(double t) const override;
+    std::unique_ptr<geom::Geometry> toLinear(double tolerance) const override;
 
     bool chordLeArc() const;
     bool inArc(const geom::CoordinateXY& p, double radialTol) const;
