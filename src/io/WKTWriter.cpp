@@ -22,6 +22,7 @@
 #include <geos/io/Writer.h>
 #include <geos/io/CLocalizer.h>
 #include <geos/io/CheckOrdinatesFilter.h>
+#include <geos/algorithm/exactcurve/ExactCircularArc.h>
 #include <geos/geom/CircularString.h>
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/CoordinateSequenceFilter.h>
@@ -300,9 +301,31 @@ WKTWriter::appendPointTaggedText(const Point& point, OrdinateSet outputOrdinates
     }
 }
 
+namespace {
+
+bool
+qualifiesAsCircleView(const SimpleCurve& curve)
+{
+    if (curve.getGeometryTypeId() != GEOS_CIRCULARSTRING || curve.getNumPoints() != 3) {
+        return false;
+    }
+    double cx, cy, r;
+    return geos::algorithm::exactcurve::ExactCircularArc::tryCircumcircle(
+        curve.getCoordinateN(0), curve.getCoordinateN(1), curve.getCoordinateN(2),
+        cx, cy, r);
+}
+
+} // namespace
+
 void
 WKTWriter::appendSimpleCurveTaggedText(const SimpleCurve& curve, OrdinateSet outputOrdinates, int level, Writer& writer) const
 {
+    if (circleView && qualifiesAsCircleView(curve)) {
+        writer.write("CIRCLE ");
+        appendOrdinateText(outputOrdinates, writer);
+        appendSequenceText(*curve.getCoordinatesRO(), outputOrdinates, level, false, writer);
+        return;
+    }
     appendTag(curve, outputOrdinates, writer);
     appendSequenceText(*curve.getCoordinatesRO(), outputOrdinates, level, false, writer);
 }

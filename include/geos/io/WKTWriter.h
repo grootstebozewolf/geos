@@ -178,6 +178,21 @@ public:
         old3D = useOld3D;
     }
 
+    /**
+     * Opt-in CIRCLE display view.
+     *
+     * When true, a three-point CircularString egg (non-collinear
+     * circumference points) is written as {@code CIRCLE (...)}.
+     * Default remains {@code CIRCULARSTRING}, the primary SQL/MM
+     * curve type (type 18). CIRCLE is a view keyword only
+     * (ANTLR grammars-v4: {@code circleGeometry : CIRCLE dim? lineStringText});
+     * not a Geometry subclass and not an Exact* type.
+     */
+    void setCircleView(bool enable)
+    {
+        circleView = enable;
+    }
+
     /*
      * \brief
      * Returns the output dimension used by the
@@ -320,6 +335,8 @@ private:
     bool trim;
 
     bool removeEmptyDimensions = false;
+
+    bool circleView = false;
 
     static constexpr int coordsPerLine = 10;
 
