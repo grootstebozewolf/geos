@@ -281,9 +281,10 @@ template<>
 void object::test<12>()
 {
     set_test_name("hit none when two proper intersections");
-    // Major arcs of (0,0) r=1 and (1,0) r=1 meet at (1/2, ±√3/2).
-    ExactCircularArc a(CoordinateXY{-1, 0}, CoordinateXY{1, 0}, CoordinateXY{0, -1});
-    ExactCircularArc b(CoordinateXY{0, 0}, CoordinateXY{2, 0}, CoordinateXY{1, -1});
+    // Nearly-full arcs of (0,0) r=1 and (1,0) r=1 meet at (1/2, ±√3/2).
+    const double q = std::sqrt(2.0) / 2.0;
+    ExactCircularArc a(CoordinateXY{1, 0}, CoordinateXY{-1, 0}, CoordinateXY{q, -q});
+    ExactCircularArc b(CoordinateXY{2, 0}, CoordinateXY{0, 0}, CoordinateXY{1 + q, -q});
     ensure(a.isArc());
     ensure(b.isArc());
     ensure(!ExactCircularArc::hit(a, b).has_value());
