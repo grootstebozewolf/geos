@@ -331,4 +331,39 @@ void object::test<15>()
     ensure(!ExactCircularArc::cook(chord, arc).has_value());
 }
 
+// CIRCLE is a WKT display view of the 3-point egg (not a Geometry subclass).
+// ANTLR grammars-v4: circleGeometry : CIRCLE dim? lineStringText
+// SQL/MM type 18 messaging stays CIRCULARSTRING.
+template<>
+template<>
+void object::test<16>()
+{
+    set_test_name("CIRCLE view round-trip, length pi, centre stable under split");
+    geos::io::WKTReader reader;
+    geos::io::WKTWriter writer;
+    writer.setTrim(true);
+
+    auto egg = reader.read<CircularString>("CIRCLE (0 1, 1 0, 0 -1)");
+    ensure(egg != nullptr);
+    ensure_equals(egg->getGeometryTypeId(), geos::geom::GEOS_CIRCULARSTRING);
+    ensure_equals(egg->getNumPoints(), static_cast<std::size_t>(3));
+    ensure_equals(writer.write(*egg), std::string("CIRCULARSTRING (0 1, 1 0, 0 -1)"));
+
+    writer.setCircleView(true);
+    ensure_equals(writer.write(*egg), std::string("CIRCLE (0 1, 1 0, 0 -1)"));
+
+    ExactCircularArc a(egg->getCoordinateN(0), egg->getCoordinateN(1),
+                       egg->getCoordinateN(2));
+    ensure(a.isArc());
+    ensure(std::fabs(a.length() - geos::MATH_PI) < 1.0e-12);
+    ensure(std::fabs(a.center().x) < 1.0e-12);
+    ensure(std::fabs(a.center().y) < 1.0e-12);
+
+    const auto parts = a.splitAt(a.getMid());
+    ensure(std::fabs(parts[0].center().x - a.center().x) < 1.0e-12);
+    ensure(std::fabs(parts[0].center().y - a.center().y) < 1.0e-12);
+    ensure(std::fabs(parts[1].center().x - a.center().x) < 1.0e-12);
+    ensure(std::fabs(parts[1].center().y - a.center().y) < 1.0e-12);
+}
+
 } // namespace tut

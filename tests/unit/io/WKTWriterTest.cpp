@@ -813,6 +813,21 @@ void object::test<22>()
                                                         "  POINT (2 2))");
 }
 
+// CIRCLE is an opt-in display view of a 3-point CircularString egg.
+template<>
+template<>
+void object::test<23>()
+{
+    set_test_name("CIRCLE view is opt-in; default stays CIRCULARSTRING");
+    auto geom = wktreader.read("CIRCLE (0 1, 1 0, 0 -1)");
+    ensure_equals(wktwriter.write(*geom), "CIRCULARSTRING (0 1, 1 0, 0 -1)");
+    wktwriter.setCircleView(true);
+    ensure_equals(wktwriter.write(*geom), "CIRCLE (0 1, 1 0, 0 -1)");
+
+    auto five = wktreader.read("CIRCULARSTRING (0 1, 1 0, 0 -1, -1 0, 0 1)");
+    ensure_equals(wktwriter.write(*five), "CIRCULARSTRING (0 1, 1 0, 0 -1, -1 0, 0 1)");
+}
+
 
 
 } // namespace tut
