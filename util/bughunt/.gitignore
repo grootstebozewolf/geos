@@ -1,0 +1,5 @@
+bin/
+.oracle-build/
+.nts-proofs/
+results/
+__pycache__/
