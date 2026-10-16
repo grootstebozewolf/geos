@@ -900,5 +900,51 @@ void object::test<74>()
     );
 }
 
+template<>
+template<>
+void object::test<75>()
+{
+    set_test_name("GH-1497");
+
+    testSplit(
+    "CURVEPOLYGON (COMPOUNDCURVE((5 0, 0 0, 0 5, 5 5), CIRCULARSTRING(5 5, 7 1, 5 0)))",
+    "CURVEPOLYGON (COMPOUNDCURVE((5 0, 0 0, 5 5), CIRCULARSTRING(5 5, 7 4, 5 0)))",
+        "GEOMETRYCOLLECTION (CURVEPOLYGON (COMPOUNDCURVE ((5 0, 0 0, 5 5), CIRCULARSTRING (5 5, 7 1, 5 0))), POLYGON ((0 0, 0 5, 5 5, 0 0)))");
+}
+
+template<>
+template<>
+void object::test<76>()
+{
+    set_test_name("split very narrow Polygon with LineString");
+
+    auto poly = reader_.read("POLYGON ((492980.38648063864093274 7082334.45244149677455425, 493082.65415841294452548 7082319.87918917648494244, 492980.38648063858272508 7082334.45244149677455425, 492980.38648063864093274 7082334.45244149677455425))");
+    auto line = reader_.read("LINESTRING (493825.46541286131832749 7082214.02779923938214779, 492955.04876351181883365 7082338.06309300474822521)");
+
+    // Fails because split polygon does not preserve area (precision issue)
+    ensure_THROW(GeometrySplitter::split(*poly, *line), geos::util::GEOSException);
+}
+
+template<>
+template<>
+void object::test<77>()
+{
+    set_test_name("split MultiSurface with LineString");
+
+    testSplit("MULTISURFACE(CURVEPOLYGON (COMPOUNDCURVE((5 0, 0 0, 0 5, 5 5), CIRCULARSTRING(5 5, 7 1, 5 0))))",
+        "LINESTRING(3 6, 3 -1)",
+        "GEOMETRYCOLLECTION (CURVEPOLYGON (COMPOUNDCURVE ((5 0, 3 0, 3 5, 5 5), CIRCULARSTRING (5 5, 7 1, 5 0))), POLYGON ((3 0, 0 0, 0 5, 3 5, 3 0)))");
+}
+
+template<>
+template<>
+void object::test<78>()
+{
+    set_test_name("split Polygon with CircularString (#1539)");
+
+    testSplit("POLYGON ((0 5, 0 10, 10 10, 10 5, 0 5))",
+        "CIRCULARSTRING (1 10, 3 7, 1 5)",
+        "GEOMETRYCOLLECTION (CURVEPOLYGON (COMPOUNDCURVE ((0 5, 0 10, 1 10), CIRCULARSTRING (1 10, 3 7, 1 5), (1 5, 0 5))), CURVEPOLYGON (COMPOUNDCURVE ((1 10, 10 10, 10 5, 1 5), CIRCULARSTRING (1 5, 3 7, 1 10))))");
+}
 
 }
