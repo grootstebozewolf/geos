@@ -213,6 +213,22 @@ WKBMultiSurface {
     uint32  numSurfaces;
     WKBSurface   surfaces[numSurfaces];
 }
+
+// Provisional fork extension. Not an OGC, ISO 13249-3, or SQL/MM type code.
+// Type 18 was chosen because SQL/MM uses 1..17. ISO Z/M offsets still apply
+// (1018, 2018, 3018), as do the EWKB Z/M flag bits.
+// A NaN x or y ordinate means EMPTY, same convention as POINT EMPTY.
+// theta0 is radians counterclockwise from +X. k0 and k1 are curvatures.
+// length is arc length. Z and M, when present, are constant on this slice.
+WKBClothoid {
+    byte    byteOrder;
+    uint32  wkbType; // 18
+    Point   start;
+    double  theta0;
+    double  k0;
+    double  k1;
+    double  length;
+}
 ```
 
 

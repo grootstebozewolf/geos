@@ -23,6 +23,7 @@
 #include <geos/io/CLocalizer.h>
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/CircularString.h>
+#include <geos/geom/Clothoid.h>
 #include <geos/geom/CompoundCurve.h>
 #include <geos/geom/Point.h>
 #include <geos/geom/LinearRing.h>
@@ -335,6 +336,10 @@ WKTReader::readGeometryTaggedText(StringTokenizer* tokenizer, OrdinateSet& ordin
     else if(isTypeName(type, "CIRCULARSTRING")) {
         geom = readCircularStringText(tokenizer, newFlags);
     }
+    else if(isTypeName(type, "CLOTHOID")) {
+        // Provisional parameter curve. Not an OGC or SQL/MM clothoid claim.
+        geom = readClothoidText(tokenizer, newFlags);
+    }
     else if(isTypeName(type, "COMPOUNDCURVE")) {
         geom = readCompoundCurveText(tokenizer, newFlags);
     }
@@ -363,13 +368,12 @@ WKTReader::readGeometryTaggedText(StringTokenizer* tokenizer, OrdinateSet& ordin
         geom = readGeometryCollectionText(tokenizer, newFlags);
     } else if (type == "EMPTY" && emptyType != nullptr) {
         return geometryFactory->createEmptyGeometry(*emptyType, newFlags.hasZ(), newFlags.hasM());
-    } else if (isTypeName(type, "CLOTHOID")
-            || isTypeName(type, "CIRCLE")
+    } else if (isTypeName(type, "CIRCLE")
             || isTypeName(type, "GEODESICSTRING")
             || isTypeName(type, "NURBSCURVE")
             || isTypeName(type, "SPIRALCURVE")) {
-        // Instantiable ST_Curve subtypes in ISO/IEC 13249-3 §4.2.1.
-        // Not optional extras. Named refuse until a carrier exists.
+        // Named refuse. CLOTHOID is parsed separately as a provisional
+        // parameter curve and is not claimed as the SQL/MM predicate suite.
         throw ParseException(
             "SQL/MM type is not optional (ISO/IEC 13249-3 §4.2.1) and is not implemented",
             type);
@@ -414,6 +418,37 @@ WKTReader::readCircularStringText(StringTokenizer* tokenizer, OrdinateSet& ordin
 {
     auto&& coords = getCoordinates(tokenizer, ordinateFlags);
     return geometryFactory->createCircularString(std::move(coords));
+}
+
+std::unique_ptr<Clothoid>
+WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const
+{
+    std::string nextToken = getNextEmptyOrOpener(tokenizer, ordinateFlags);
+    if (nextToken == "EMPTY") {
+        return geometryFactory->createClothoid(ordinateFlags.hasZ(), ordinateFlags.hasM());
+    }
+
+    CoordinateXYZM start(0.0, 0.0, DoubleNotANumber, DoubleNotANumber);
+    getPreciseCoordinate(tokenizer, ordinateFlags, start);
+    if (getNextCloserOrComma(tokenizer) != ",") {
+        throw ParseException("Expected comma after CLOTHOID start coordinate");
+    }
+    const double theta0 = getNextNumber(tokenizer);
+    if (getNextCloserOrComma(tokenizer) != ",") {
+        throw ParseException("Expected comma after CLOTHOID start tangent");
+    }
+    const double k0 = getNextNumber(tokenizer);
+    if (getNextCloserOrComma(tokenizer) != ",") {
+        throw ParseException("Expected comma after CLOTHOID start curvature");
+    }
+    const double k1 = getNextNumber(tokenizer);
+    if (getNextCloserOrComma(tokenizer) != ",") {
+        throw ParseException("Expected comma after CLOTHOID end curvature");
+    }
+    const double length = getNextNumber(tokenizer);
+    getNextCloser(tokenizer);
+    return geometryFactory->createClothoid(
+        start, ordinateFlags.hasZ(), ordinateFlags.hasM(), theta0, k0, k1, length);
 }
 
 std::unique_ptr<Curve>

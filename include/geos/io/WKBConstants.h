@@ -43,6 +43,11 @@ namespace WKBConstants {
         wkbCurvePolygon = 10,
         wkbMultiCurve = 11,
         wkbMultiSurface = 12,
+        // Provisional fork extension. Not an OGC, ISO, or SQL/MM type code.
+        // Body layout (after the standard byte order, type word, and optional SRID):
+        //   x, y, [z], [m], theta0, k0, k1, length
+        // Empty clothoids are encoded with NaN ordinates, matching POINT EMPTY.
+        wkbClothoid = 18,
     };
 
     enum wkbFlavour {

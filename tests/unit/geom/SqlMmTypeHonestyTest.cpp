@@ -175,22 +175,20 @@ void object::test<6>()
     ensure(result->hasCurvedTypes());
 }
 
-// §4.2.1: ST_Clothoid / ST_Circle / ST_GeodesicString / ST_NURBSCurve /
-// ST_SpiralCurve are instantiable, not optional extras. Refuse, do not
-// call them unknown.
+// CIRCLE / GEODESICSTRING / NURBSCURVE / SPIRALCURVE stay named refuses.
+// CLOTHOID EMPTY is accepted as a provisional parameter curve. That parse
+// does not claim a SQL/MM predicate suite for the clothoid.
 template<>
 template<>
 void object::test<7>()
 {
-    set_test_name("SQL/MM §4.2.1 curve types are named refuses, not unknown extras");
+    set_test_name("unimplemented SQL/MM curve names are refuses, not unknown extras");
 
     const char* wkts[] = {
-        "CLOTHOID EMPTY",
         "CIRCLE EMPTY",
         "GEODESICSTRING EMPTY",
         "NURBSCURVE EMPTY",
         "SPIRALCURVE EMPTY",
-        "CLOTHOID Z EMPTY",
     };
 
     for (const char* wkt : wkts) {
@@ -214,6 +212,13 @@ void object::test<7>()
         const std::string msg(ex.what());
         ensure(msg.find("Unknown type") != std::string::npos);
     }
+
+    auto clothoid = read("CLOTHOID EMPTY");
+    ensure(clothoid->isEmpty());
+    ensure_equals(clothoid->getGeometryTypeId(), GeometryTypeId::GEOS_CLOTHOID);
+    auto clothoidZ = read("CLOTHOID Z EMPTY");
+    ensure(clothoidZ->isEmpty());
+    ensure(clothoidZ->hasZ());
 }
 
 } // namespace tut

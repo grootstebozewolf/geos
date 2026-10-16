@@ -2,6 +2,10 @@
 2027-xx-xx
 
 - New things:
+  - Provisional clothoid segment (WKT keyword CLOTHOID, WKB type 18). Not an
+    OGC or ISO type code. This slice evaluates Fresnel position, a Halley
+    chord-length solve, arc length, an axis-aligned envelope, and
+    linearization. It does not implement clothoid relate, overlay, or buffer.
   - Add DirectedHausdorffDistance and C API GEOSDirectedHausdorffDistance /
     GEOSSymmetricHausdorffDistance (Martin Davis, Jeroen Bloemscheer, Dan Baston)
 
