@@ -21,6 +21,7 @@
 #include <geos/io/ByteOrderValues.h>
 #include <geos/io/ParseException.h>
 #include <geos/geom/CircularString.h>
+#include <geos/geom/Clothoid.h>
 #include <geos/geom/CompoundCurve.h>
 #include <geos/geom/CurvePolygon.h>
 #include <geos/geom/Geometry.h>
@@ -210,6 +211,7 @@ WKBReader::minMemSize(geom::GeometryTypeId geomType, uint64_t size) const
         case GEOS_LINEARRING:
         case GEOS_CIRCULARSTRING:
         case GEOS_COMPOUNDCURVE:
+        case GEOS_CLOTHOID:
         case GEOS_POINT:
             perElement = minCoordSize;
             break;
@@ -344,6 +346,9 @@ WKBReader::readGeometry()
     case WKBConstants::wkbCircularString :
         result = readCircularString();
         break;
+    case WKBConstants::wkbClothoid :
+        result = readClothoid();
+        break;
     case WKBConstants::wkbCompoundCurve :
         result = readCompoundCurve();
         break;
@@ -430,6 +435,31 @@ WKBReader::readCircularString()
     minMemSize(GEOS_CIRCULARSTRING, size);
     auto pts = readCoordinateSequence(size);
     return factory.createCircularString(std::move(pts));
+}
+
+std::unique_ptr<Clothoid>
+WKBReader::readClothoid()
+{
+    // Provisional body: start ordinate, then theta0, k0, k1, length.
+    // NaN x or y is EMPTY, matching POINT EMPTY. The remaining words are
+    // still consumed so the stream stays aligned.
+    readCoordinate();
+    CoordinateXYZM start(ordValues[0], ordValues[1], DoubleNotANumber, DoubleNotANumber);
+    unsigned int ordinate = 2;
+    if (hasZ) {
+        start.z = ordValues[ordinate++];
+    }
+    if (hasM) {
+        start.m = ordValues[ordinate++];
+    }
+    const double theta0 = dis.readDouble();
+    const double k0 = dis.readDouble();
+    const double k1 = dis.readDouble();
+    const double length = dis.readDouble();
+    if (!std::isfinite(start.x) || !std::isfinite(start.y)) {
+        return factory.createClothoid(hasZ, hasM);
+    }
+    return factory.createClothoid(start, hasZ, hasM, theta0, k0, k1, length);
 }
 
 std::unique_ptr<CompoundCurve>

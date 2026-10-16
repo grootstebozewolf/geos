@@ -39,6 +39,7 @@ namespace geos {
 namespace geom {
 class Coordinate;
 class CircularString;
+class Clothoid;
 class CompoundCurve;
 class CoordinateSequence;
 class Curve;
@@ -357,6 +358,31 @@ public:
     /// Construct a CircularString with a deep-copy of given argument
     std::unique_ptr<CircularString> createCircularString(
         const CoordinateSequence& coordinates) const;
+
+    /// Construct an EMPTY Clothoid. Provisional type; see geom::Clothoid.
+    std::unique_ptr<Clothoid> createClothoid(bool hasZ, bool hasM) const;
+
+    /**
+     * Construct a clothoid from its arc-length parameters.
+     * theta0 is radians from +X. length must be finite and non-negative.
+     * Z and M on start are stored and held constant along the segment when
+     * the corresponding flag is set.
+     */
+    std::unique_ptr<Clothoid> createClothoid(
+        const CoordinateXYZM& start,
+        bool hasZ, bool hasM,
+        double theta0, double k0, double k1, double length) const;
+
+    /**
+     * Solve the chord length with Halley's method and rotate the local frame
+     * onto the chord. Throws if the residual test does not pass.
+     * A successful return means that test passed for this call, not that the
+     * positive root is unique.
+     */
+    std::unique_ptr<Clothoid> createClothoidFromChord(
+        const CoordinateXY& start,
+        const CoordinateXY& end,
+        double k0, double k1) const;
 
     /// Construct an EMPTY CompoundCurve
     std::unique_ptr<CompoundCurve> createCompoundCurve() const;

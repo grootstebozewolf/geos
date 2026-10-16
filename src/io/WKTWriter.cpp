@@ -23,6 +23,7 @@
 #include <geos/io/CLocalizer.h>
 #include <geos/io/CheckOrdinatesFilter.h>
 #include <geos/geom/CircularString.h>
+#include <geos/geom/Clothoid.h>
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/CoordinateSequenceFilter.h>
 #include <geos/geom/CompoundCurve.h>
@@ -239,6 +240,7 @@ WKTWriter::appendGeometryTaggedText(const Geometry& geometry,
         case GEOS_LINESTRING:
         case GEOS_LINEARRING:
         case GEOS_CIRCULARSTRING: appendSimpleCurveTaggedText(static_cast<const SimpleCurve&>(geometry), outputOrdinates, level, writer); break;
+        case GEOS_CLOTHOID: appendClothoidTaggedText(static_cast<const Clothoid&>(geometry), outputOrdinates, level, writer); break;
         case GEOS_COMPOUNDCURVE: appendCompoundCurveTaggedText(static_cast<const CompoundCurve&>(geometry), outputOrdinates, level, writer); break;
         case GEOS_CURVEPOLYGON:
         case GEOS_POLYGON:    appendSurfaceTaggedText(static_cast<const Surface&>(geometry), outputOrdinates, level, writer); break;
@@ -315,6 +317,8 @@ WKTWriter::appendCurveText(const Curve& curve, OrdinateSet outputOrdinates, int 
 
     if (curve.getGeometryTypeId() == GEOS_COMPOUNDCURVE) {
         appendCompoundCurveTaggedText(static_cast<const CompoundCurve&>(curve), outputOrdinates, level, writer);
+    } else if (curve.getGeometryTypeId() == GEOS_CLOTHOID) {
+        appendClothoidTaggedText(static_cast<const Clothoid&>(curve), outputOrdinates, level, writer);
     } else {
         appendSimpleCurveText(static_cast<const SimpleCurve&>(curve), outputOrdinates, level, false, writer);
     }
@@ -328,9 +332,36 @@ WKTWriter::appendSimpleCurveText(const SimpleCurve& curve, OrdinateSet outputOrd
 
     if (curve.getGeometryTypeId() == GEOS_CIRCULARSTRING) {
         appendSimpleCurveTaggedText(curve, outputOrdinates, level, writer);
+    } else if (curve.getGeometryTypeId() == GEOS_CLOTHOID) {
+        appendClothoidTaggedText(static_cast<const Clothoid&>(curve), outputOrdinates, level, writer);
     } else {
         appendSequenceText(*curve.getCoordinatesRO(), outputOrdinates, level, false, writer);
     }
+}
+
+void
+WKTWriter::appendClothoidTaggedText(const Clothoid& clothoid, OrdinateSet outputOrdinates, int level, Writer& writer) const
+{
+    (void) level;
+    appendTag(clothoid, outputOrdinates, writer);
+    if (clothoid.isEmpty()) {
+        writer.write("EMPTY");
+        return;
+    }
+
+    writer.write("(");
+    CoordinateXYZM start;
+    clothoid.getCoordinatesRO()->getAt(0, start);
+    appendCoordinate(start, outputOrdinates, writer);
+    writer.write(", ");
+    writer.write(writeNumber(clothoid.getStartTangent()));
+    writer.write(", ");
+    writer.write(writeNumber(clothoid.getStartCurvature()));
+    writer.write(", ");
+    writer.write(writeNumber(clothoid.getEndCurvature()));
+    writer.write(", ");
+    writer.write(writeNumber(clothoid.getLength()));
+    writer.write(")");
 }
 
 

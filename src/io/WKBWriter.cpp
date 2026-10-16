@@ -22,6 +22,7 @@
 #include <geos/io/CheckOrdinatesFilter.h>
 #include <geos/util/IllegalArgumentException.h>
 #include <geos/geom/Coordinate.h>
+#include <geos/geom/Clothoid.h>
 #include <geos/geom/CompoundCurve.h>
 #include <geos/geom/CurvePolygon.h>
 #include <geos/geom/Point.h>
@@ -117,6 +118,7 @@ WKBWriter::write(const Geometry& g, std::ostream& os)
         case GEOS_LINESTRING:
         case GEOS_LINEARRING:
         case GEOS_CIRCULARSTRING: writeSimpleCurve(static_cast<const SimpleCurve&>(g)); break;
+        case GEOS_CLOTHOID: writeClothoid(static_cast<const Clothoid&>(g)); break;
         case GEOS_COMPOUNDCURVE: writeCompoundCurve(static_cast<const CompoundCurve&>(g)); break;
         case GEOS_POLYGON: writePolygon(static_cast<const Polygon&>(g)); break;
         case GEOS_CURVEPOLYGON: writeCurvePolygon(static_cast<const CurvePolygon&>(g)); break;
@@ -174,6 +176,53 @@ WKBWriter::writeSimpleCurve(const SimpleCurve& g)
 }
 
 void
+WKBWriter::writeDouble(double value)
+{
+    ByteOrderValues::putDouble(value, buf, byteOrder);
+    outStream->write(reinterpret_cast<char*>(buf), 8);
+}
+
+void
+WKBWriter::writeClothoid(const Clothoid& g)
+{
+    writeByteOrder();
+    writeGeometryType(WKBConstants::wkbClothoid, g.getSRID());
+    writeSRID(g.getSRID());
+
+    if (g.isEmpty()) {
+        const double nan = DoubleNotANumber;
+        writeDouble(nan);
+        writeDouble(nan);
+        if (outputOrdinates.hasZ()) {
+            writeDouble(nan);
+        }
+        if (outputOrdinates.hasM()) {
+            writeDouble(nan);
+        }
+        writeDouble(nan);
+        writeDouble(nan);
+        writeDouble(nan);
+        writeDouble(nan);
+        return;
+    }
+
+    CoordinateXYZM start(DoubleNotANumber, DoubleNotANumber, DoubleNotANumber, DoubleNotANumber);
+    g.getCoordinatesRO()->getAt(0, start);
+    writeDouble(start.x);
+    writeDouble(start.y);
+    if (outputOrdinates.hasZ()) {
+        writeDouble(start.z);
+    }
+    if (outputOrdinates.hasM()) {
+        writeDouble(start.m);
+    }
+    writeDouble(g.getStartTangent());
+    writeDouble(g.getStartCurvature());
+    writeDouble(g.getEndCurvature());
+    writeDouble(g.getLength());
+}
+
+void
 WKBWriter::writeCompoundCurve(const CompoundCurve& g)
 {
     writeByteOrder();
@@ -188,7 +237,13 @@ WKBWriter::writeCompoundCurve(const CompoundCurve& g)
 
     for (std::size_t i = 0; i < g.getNumCurves(); i++) {
         const SimpleCurve& section = *g.getCurveN(i);
-        writeSimpleCurve(section);
+        if (section.getGeometryTypeId() == GEOS_CLOTHOID) {
+            const OrdinateSet savedOrdinates = outputOrdinates;
+            write(section, *outStream);
+            outputOrdinates = savedOrdinates;
+        } else {
+            writeSimpleCurve(section);
+        }
     }
 
     includeSRID = orig_includeSRID;
@@ -428,6 +483,7 @@ WKBWriter::getWkbType(const Geometry& g) {
         case GEOS_LINESTRING:
         case GEOS_LINEARRING: return WKBConstants::wkbLineString;
         case GEOS_CIRCULARSTRING: return WKBConstants::wkbCircularString;
+        case GEOS_CLOTHOID: return WKBConstants::wkbClothoid;
         case GEOS_COMPOUNDCURVE: return WKBConstants::wkbCompoundCurve;
         case GEOS_POLYGON: return WKBConstants::wkbPolygon;
         case GEOS_CURVEPOLYGON: return WKBConstants::wkbCurvePolygon;

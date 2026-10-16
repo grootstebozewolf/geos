@@ -20,7 +20,9 @@
 
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/CoordinateSequence.h>
+#include <geos/algorithm/Clothoid.h>
 #include <geos/geom/CircularString.h>
+#include <geos/geom/Clothoid.h>
 #include <geos/geom/CurvePolygon.h>
 #include <geos/geom/CompoundCurve.h>
 #include <geos/geom/GeometryFactory.h>
@@ -375,6 +377,7 @@ GeometryFactory::createEmptyGeometry(GeometryTypeId type, bool hasZ, bool hasM) 
         case GEOS_MULTIPOLYGON: return createMultiPolygon();
         case GEOS_GEOMETRYCOLLECTION: return createGeometryCollection();
         case GEOS_CIRCULARSTRING: return createCircularString(hasZ, hasM);
+        case GEOS_CLOTHOID: return createClothoid(hasZ, hasM);
         case GEOS_COMPOUNDCURVE: return createCompoundCurve();
         case GEOS_CURVEPOLYGON: return createCurvePolygon(hasZ, hasM);
         case GEOS_MULTICURVE: return createMultiCurve();
@@ -724,6 +727,46 @@ GeometryFactory::createCircularString(bool hasZ, bool hasM) const
     return createCircularString(std::move(cs));
 }
 
+std::unique_ptr<Clothoid>
+GeometryFactory::createClothoid(bool hasZ, bool hasM) const
+{
+    return std::unique_ptr<Clothoid>(new Clothoid(hasZ, hasM, *this));
+}
+
+std::unique_ptr<Clothoid>
+GeometryFactory::createClothoid(
+    const CoordinateXYZM& start,
+    bool hasZ, bool hasM,
+    double theta0, double k0, double k1, double length) const
+{
+    algorithm::clothoid::Parameters parameters;
+    parameters.x0 = start.x;
+    parameters.y0 = start.y;
+    parameters.theta0 = theta0;
+    parameters.k0 = k0;
+    parameters.k1 = k1;
+    parameters.length = length;
+    return std::unique_ptr<Clothoid>(new Clothoid(
+        parameters, hasZ, hasM, start.z, start.m, *this));
+}
+
+std::unique_ptr<Clothoid>
+GeometryFactory::createClothoidFromChord(
+    const CoordinateXY& start,
+    const CoordinateXY& end,
+    double k0, double k1) const
+{
+    const algorithm::clothoid::ChordPlacement placed = algorithm::clothoid::placeOnChord(
+        start.x, start.y, end.x, end.y, k0, k1);
+    if (!placed.solve.converged) {
+        throw geos::util::IllegalArgumentException(
+            "Halley length solve did not meet the residual tolerance for this chord and curvature pair");
+    }
+    CoordinateXYZM origin(start.x, start.y, DoubleNotANumber, DoubleNotANumber);
+    return createClothoid(origin, false, false,
+        placed.parameters.theta0, k0, k1, placed.solve.length);
+}
+
 /*public*/
 std::unique_ptr<LineString>
 GeometryFactory::createLineString(const LineString& ls) const
@@ -840,6 +883,7 @@ GeometryFactory::createEmpty(GeometryTypeId typeId) const
         case GEOS_LINESTRING: return createLineString();
         case GEOS_POLYGON: return createPolygon();
         case GEOS_CIRCULARSTRING: return createCircularString(false, false);
+        case GEOS_CLOTHOID: return createClothoid(false, false);
         case GEOS_COMPOUNDCURVE: return createCompoundCurve();
         case GEOS_CURVEPOLYGON: return createCurvePolygon(false, false);
         case GEOS_MULTIPOINT: return createMultiPoint();
@@ -879,6 +923,7 @@ GeometryFactory::createMulti(std::unique_ptr<Geometry> && geom) const
             return gf->createMultiPolygon(std::move(subgeoms));
         case GEOS_CIRCULARSTRING:
         case GEOS_COMPOUNDCURVE:
+        case GEOS_CLOTHOID:
             return gf->createMultiCurve(std::move(subgeoms));
         case GEOS_CURVEPOLYGON:
             return gf->createMultiSurface(std::move(subgeoms));
@@ -911,7 +956,8 @@ GeometryTypeId commonType(const T& geoms) {
     switch(geoms[0]->getGeometryTypeId()) {
         case GEOS_POINT: return GEOS_MULTIPOINT;
         case GEOS_COMPOUNDCURVE:
-        case GEOS_CIRCULARSTRING: return GEOS_MULTICURVE;
+        case GEOS_CIRCULARSTRING:
+        case GEOS_CLOTHOID: return GEOS_MULTICURVE;
         case GEOS_LINEARRING:
         case GEOS_LINESTRING: return curvedType ? GEOS_MULTICURVE : GEOS_MULTILINESTRING;
         case GEOS_CURVEPOLYGON: return GEOS_MULTISURFACE;
@@ -998,7 +1044,8 @@ GeometryFactory::buildGeometry(std::vector<std::unique_ptr<Curve>> && geoms) con
 
     const bool hasCurves = std::any_of(geoms.begin(), geoms.end(), [](const auto& geom) {
         const auto typeId = geom->getGeometryTypeId();
-        return typeId == GEOS_COMPOUNDCURVE || typeId == GEOS_CIRCULARSTRING;
+        return typeId == GEOS_COMPOUNDCURVE || typeId == GEOS_CIRCULARSTRING
+            || typeId == GEOS_CLOTHOID;
     });
 
     if (hasCurves) {
