@@ -27,6 +27,7 @@
 #include <geos/algorithm/construct/MaximumInscribedCircle.h>
 #include <geos/algorithm/construct/LargestEmptyCircle.h>
 #include <geos/algorithm/distance/DiscreteHausdorffDistance.h>
+#include <geos/algorithm/distance/DirectedHausdorffDistance.h>
 #include <geos/algorithm/distance/DiscreteFrechetDistance.h>
 #include <geos/algorithm/hull/ConcaveHull.h>
 #include <geos/algorithm/hull/ConcaveHullOfPolygons.h>
@@ -135,6 +136,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -176,6 +178,12 @@ typedef struct {
     int method;
     int keepCollapsed;
 } GEOSMakeValidParams;
+
+// Implementation struct for the GEOSisSimpleParams object
+typedef struct {
+    bool findAllLocations;
+    int boundaryNodeRule;
+} GEOSisSimpleParams;
 
 #include "geos_c.h"
 
@@ -226,6 +234,7 @@ using geos::io::GeoJSONWriter;
 
 using geos::algorithm::distance::DiscreteFrechetDistance;
 using geos::algorithm::distance::DiscreteHausdorffDistance;
+using geos::algorithm::distance::DirectedHausdorffDistance;
 using geos::algorithm::hull::ConcaveHull;
 using geos::algorithm::hull::ConcaveHullOfPolygons;
 
@@ -1029,6 +1038,7 @@ extern "C" {
         using geos::operation::relate::RelateOp;
         using geos::geom::IntersectionMatrix;
         using geos::algorithm::BoundaryNodeRule;
+        using geos::util::IllegalArgumentException;
 
         return execute(extHandle, [&]() -> char* {
             std::unique_ptr<IntersectionMatrix> im;
@@ -1055,7 +1065,7 @@ extern "C" {
                 default:
                     std::ostringstream ss;
                     ss << "Invalid boundary node rule " << bnr;
-                    throw std::runtime_error(ss.str());
+                    throw IllegalArgumentException(ss.str());
             }
 
             if(!im) {
@@ -1276,6 +1286,66 @@ extern "C" {
             *p1y = pts[0].y;
             *p2x = pts[1].x;
             *p2y = pts[1].y;
+            return 1;
+        });
+    }
+
+    int
+    GEOSDirectedHausdorffDistance_r(GEOSContextHandle_t extHandle, const Geometry* g1, const Geometry* g2, double* dist)
+    {
+        return execute(extHandle, 0, [&]() {
+            const auto input1 = convertToLineIfNeeded(extHandle, g1);
+            const auto input2 = convertToLineIfNeeded(extHandle, g2);
+
+            *dist = DirectedHausdorffDistance::distance(*input1, *input2);
+            return 1;
+        });
+    }
+
+    int
+    GEOSDirectedHausdorffDistanceWithPoints_r(GEOSContextHandle_t extHandle,
+        const Geometry* g1, const Geometry* g2,
+        double* dist, double* p1x, double* p1y,
+        double* p2x, double* p2y)
+    {
+        return execute(extHandle, 0, [&]() {
+            const auto input1 = convertToLineIfNeeded(extHandle, g1);
+            const auto input2 = convertToLineIfNeeded(extHandle, g2);
+
+            auto pts = DirectedHausdorffDistance::distancePoints(*input1, *input2);
+            if (!pts) {
+                *dist = std::numeric_limits<double>::quiet_NaN();
+                *p1x = *p1y = *p2x = *p2y = std::numeric_limits<double>::quiet_NaN();
+                return 1;
+            }
+            *dist = (*pts)[0].distance((*pts)[1]);
+            *p1x = (*pts)[0].x;
+            *p1y = (*pts)[0].y;
+            *p2x = (*pts)[1].x;
+            *p2y = (*pts)[1].y;
+            return 1;
+        });
+    }
+
+    int
+    GEOSDirectedHausdorffDistanceWithin_r(GEOSContextHandle_t extHandle,
+        const Geometry* g1, const Geometry* g2, double maxDistance)
+    {
+        return execute(extHandle, 2, [&]() {
+            const auto input1 = convertToLineIfNeeded(extHandle, g1);
+            const auto input2 = convertToLineIfNeeded(extHandle, g2);
+            return DirectedHausdorffDistance::isFullyWithinDistance(*input1, *input2, maxDistance) ? 1 : 0;
+        });
+    }
+
+    int
+    GEOSSymmetricHausdorffDistance_r(GEOSContextHandle_t extHandle, const Geometry* g1, const Geometry* g2, double* dist)
+    {
+        return execute(extHandle, 0, [&]() {
+            const auto input1 = convertToLineIfNeeded(extHandle, g1);
+            const auto input2 = convertToLineIfNeeded(extHandle, g2);
+
+            *dist = DirectedHausdorffDistance::hausdorffDistance(*input1, *input2);
             return 1;
         });
     }
@@ -1550,6 +1620,10 @@ extern "C" {
         });
     }
 
+/************************************************************************
+ * IsSimpleOp {
+ */
+
     char
     GEOSisSimple_r(GEOSContextHandle_t extHandle, const Geometry* g1)
     {
@@ -1567,21 +1641,113 @@ extern "C" {
             geos::operation::valid::IsSimpleOp iso(inputGeom);
             iso.setFindAllLocations(returnAllPoints);
 
-            *result = nullptr;
-
             bool simple = iso.isSimple();
-            if (!simple) {
-                auto locations = iso.getNonSimpleLocations();
-                if (locations.size() == 1 || !returnAllPoints) {
-                    *result = extHandle->geomFactory->createPoint(locations.front()).release();
-                } else {
-                    *result = extHandle->geomFactory->createMultiPoint(locations).release();
+            if ( result ) {
+                *result = nullptr;
+                if (!simple) {
+                    auto locations = iso.getNonSimpleLocations();
+                    if (locations.size() == 1 || !returnAllPoints) {
+                        *result = extHandle->geomFactory->createPoint(locations.front()).release();
+                    } else {
+                        *result = extHandle->geomFactory->createMultiPoint(locations).release();
+                    }
+                    (*result)->setSRID(inputGeom->getSRID());
                 }
             }
 
             return simple;
         });
     }
+
+    GEOSisSimpleParams*
+    GEOSisSimpleParams_create_r(GEOSContextHandle_t extHandle)
+    {
+        using geos::algorithm::BoundaryNodeRule;
+
+        return execute(extHandle, [&]() {
+            GEOSisSimpleParams* p = new GEOSisSimpleParams();
+            p->findAllLocations = false;
+            p->boundaryNodeRule = GEOSRELATE_BNR_MOD2;
+            return p;
+        });
+    }
+
+    void
+    GEOSisSimpleParams_destroy_r(GEOSContextHandle_t extHandle, GEOSisSimpleParams* parms)
+    {
+        (void)extHandle;
+        delete parms;
+    }
+
+    void
+    GEOSisSimpleParams_setFindAllLocations_r(GEOSContextHandle_t extHandle, GEOSisSimpleParams* params, int val)
+    {
+        (void)extHandle;
+        params->findAllLocations = val;
+    }
+
+    void
+    GEOSisSimpleParams_setBoundaryNodeRule_r(GEOSContextHandle_t extHandle, GEOSisSimpleParams* params, int bnr)
+    {
+        (void)extHandle;
+        params->boundaryNodeRule = bnr;
+    }
+
+
+    char
+    GEOSisSimpleWithParams_r(GEOSContextHandle_t extHandle, const Geometry* g1, const GEOSisSimpleParams* params, Geometry** result)
+    {
+        using geos::algorithm::BoundaryNodeRule;
+        using geos::operation::valid::IsSimpleOp;
+        using geos::util::IllegalArgumentException;
+
+        return execute(extHandle, 2, [&]() {
+            const auto inputGeom = convertToLineIfNeeded(extHandle, g1);
+            std::unique_ptr<IsSimpleOp> op;
+
+            switch ( params->boundaryNodeRule ) {
+                case GEOSRELATE_BNR_MOD2: /* same as OGC */
+                    op = std::make_unique<IsSimpleOp>(*inputGeom, BoundaryNodeRule::getBoundaryRuleMod2());
+                    break;
+                case GEOSRELATE_BNR_ENDPOINT:
+                    op = std::make_unique<IsSimpleOp>(*inputGeom, BoundaryNodeRule::getBoundaryEndPoint());
+                    break;
+                case GEOSRELATE_BNR_MULTIVALENT_ENDPOINT:
+                    op = std::make_unique<IsSimpleOp>(*inputGeom, BoundaryNodeRule::getBoundaryMultivalentEndPoint());
+                    break;
+                case GEOSRELATE_BNR_MONOVALENT_ENDPOINT:
+                    op = std::make_unique<IsSimpleOp>(*inputGeom, BoundaryNodeRule::getBoundaryMonovalentEndPoint());
+                    break;
+                default:
+                    std::ostringstream ss;
+                    ss << "Invalid boundary node rule " << params->boundaryNodeRule;
+                    throw IllegalArgumentException(ss.str());
+            }
+
+            op->setFindAllLocations( params->findAllLocations );
+
+
+            bool simple = op->isSimple();
+            if ( result ) {
+                *result = nullptr;
+                if (!simple) {
+                    auto locations = op->getNonSimpleLocations();
+                    if (locations.size() == 1 || ! params->findAllLocations ) {
+                        *result = extHandle->geomFactory->createPoint(locations.front()).release();
+                    } else {
+                        *result = extHandle->geomFactory->createMultiPoint(locations).release();
+                    }
+                    (*result)->setSRID(inputGeom->getSRID());
+                }
+            }
+
+            return simple;
+        });
+    }
+
+/*
+ * IsSimpleOp }
+ ************************************************************************/
 
     char
     GEOSisRing_r(GEOSContextHandle_t extHandle, const Geometry* g)
@@ -3190,6 +3356,13 @@ extern "C" {
         return version;
     }
 
+    const char* GEOSrevision()
+    {
+        static char rev[256];
+        snprintf(rev, 256, "%s", GEOS_REVISION);
+        return rev;
+    }
+
     const char* GEOSjtsport()
     {
         return GEOS_JTS_PORT;
@@ -4766,8 +4939,8 @@ extern "C" {
     {
         return execute(extHandle, -1.0, [&]() {
             const Point* point = dynamic_cast<const Point*>(p);
-            if(!point) {
-                throw std::runtime_error("third argument of GEOSProject_r must be Point");
+            if(!point || point->isEmpty()) {
+                throw IllegalArgumentException("third argument of GEOSProject_r must be non-empty Point");
             }
             const geos::geom::Coordinate inputPt(*p->getCoordinate());
             const auto inputLine = convertToLineIfNeeded(extHandle, g);

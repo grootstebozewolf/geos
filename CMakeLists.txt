@@ -12,6 +12,14 @@
 cmake_minimum_required(VERSION 3.15)
 
 #-----------------------------------------------------------------------------
+# Diagnostic info, shown with: cmake --log-level VERBOSE ...
+#-----------------------------------------------------------------------------
+message(VERBOSE "CMAKE_VERSION: ${CMAKE_VERSION}")
+message(VERBOSE "CMAKE_GENERATOR: ${CMAKE_GENERATOR}")
+message(VERBOSE "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")
+message(VERBOSE "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
+
+#-----------------------------------------------------------------------------
 # Version
 #-----------------------------------------------------------------------------
 file(READ Version.txt _version_txt)
@@ -78,6 +86,38 @@ message(STATUS "GEOS: Version ${GEOS_VERSION}")
 message(STATUS "GEOS: C API Version ${CAPI_VERSION}")
 message(STATUS "GEOS: JTS port ${JTS_PORT}")
 
+# Generate revision information from git
+execute_process(
+  COMMAND git describe --tags --always
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE _git_describe
+  ERROR_VARIABLE _git_describe_err
+)
+# Strip any trailing newline/whitespace from the description
+string(STRIP "${_git_describe}" _git_describe_stripped)
+
+set(GEOS_REVISION "${_git_describe_stripped}" CACHE STRING "git describe output")
+
+# Check if the working tree is dirty
+execute_process(
+  COMMAND git diff --quiet
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  RESULT_VARIABLE _diff_rc
+)
+if(NOT _diff_rc EQUAL 0)
+  set(GEOS_REVISION "${GEOS_REVISION} (dirty)")
+else()
+  # Also check for untracked files
+  execute_process(
+    COMMAND git status --porcelain
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE _status
+  )
+  if(_status MATCHES "\\?\\?")
+    set(GEOS_REVISION "${GEOS_REVISION} (dirty)")
+  endif()
+endif()
+
 if(CMAKE_VERSION VERSION_LESS 3.21)
   if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(PROJECT_IS_TOP_LEVEL ON)
@@ -121,6 +161,12 @@ include(CMakeDependentOption)
 
 ## CMake global variables
 option(BUILD_SHARED_LIBS "Build GEOS with shared libraries" ON)
+if(BUILD_SHARED_LIBS)
+  message(STATUS "GEOS: Building shared libraries")
+else()
+  message(STATUS "GEOS: Building static libraries")
+endif()
+
 set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard version to use (minimum requirement is c++17)")
 
 ## GEOS custom variables

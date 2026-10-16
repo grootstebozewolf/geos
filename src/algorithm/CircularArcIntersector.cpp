@@ -186,16 +186,18 @@ CircularArcIntersector::intersects(const CircularArc& arc, const CoordinateSeque
         nCand = 1;
     }
 
-    // Check for exact endpoint-endpoint or endpoint-control point intersections
-    // If found, replace the computed intersection points with an exact endpoint
+    // An arc endpoint or control point that lies exactly on the segment's
+    // line (including in the interior, not only at a segment endpoint) is
+    // the intersection. Replace the nearest computed point with that exact
+    // control point so the result is bitwise identical to the input.
     if (nCand > 0) {
-        if (ap0 == bp0 || ap0 == bp1) {
+        if (Orientation::index(bp0, bp1, ap0) == Orientation::COLLINEAR) {
             closestPoint(isect0, isect1, nCand, ap0) = ap0;
         }
-        if (ap1 == bp0 || ap1 == bp1) {
+        if (Orientation::index(bp0, bp1, ap1) == Orientation::COLLINEAR) {
             closestPoint(isect0, isect1, nCand, ap1) = ap1;
         }
-        if (ap2 == bp0 || ap2 == bp1) {
+        if (Orientation::index(bp0, bp1, ap2) == Orientation::COLLINEAR) {
             closestPoint(isect0, isect1, nCand, ap2) = ap2;
         }
     }
@@ -286,6 +288,8 @@ CircularArcIntersector::intersects(const CircularArc& arc1, const CircularArc& a
     // TODO the coincidence test compares circles derived independently from each
     // arc's control points, so arcs on the same ideal circle that do not share
     // control points may still be reported as crossing rather than cocircular.
+    // Coincident circles are the only cocircular case: a radical line through
+    // a center (distance 0) is a crossing, not a coincidence.
     if (nCand < 0) {
         computeCocircularIntersection(arc1, arc2);
     } else {
