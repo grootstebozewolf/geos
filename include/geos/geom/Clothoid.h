@@ -26,26 +26,61 @@ struct Parameters;
 namespace geom {
 
 /**
- * A single clothoid (Euler spiral) segment.
+ * Reference location of an ST_Clothoid.
  *
- * Provisional fork extension. The WKT keyword CLOTHOID and WKB type code 18
- * are not an OGC or ISO/IEC 13249-3 assignment. This type stores one
- * arc-length segment
+ * ISO/IEC 13249-3:2016 §4.9.3. Two reference directions, the images of the
+ * constructive X and Y axes. §7.8.1 requires that cardinality to be 2.
+ * Z components are zero when the clothoid is not 3D.
+ */
+struct GEOS_DLL ClothoidReferenceLocation {
+    double x;
+    double y;
+    double z;
+    double ux;
+    double uy;
+    double uz;
+    double vx;
+    double vy;
+    double vz;
+};
+
+/**
+ * A single ST_Clothoid segment.
  *
- *   CLOTHOID [Z][M] (x y [z] [m], theta0, k0, k1, length)
+ * ISO/IEC 13249-3:2016 §4.2.11 and §7.8. WKT keyword CLOTHOID is the SQL/MM
+ * keyword (§5.1.67). WKB type 22, with Z/M/ZM codes 1022/2022/3022
+ * (§5.1.68 Table 15). Type 18 is ST_Circle in that table and is not a clothoid.
  *
- * with theta0 in radians from +X, k0 and k1 the endpoint curvatures, and
- * length the arc length. Z and M, when present, are constant along the
- * segment in this slice.
+ * The stored attributes are the reference location (an ST_AffinePlacement),
+ * the scale factor, and the start and end constructive distances. Optional
+ * measure is a start/end pair (§4.2.11, §7.8.1), not an ordinate of the
+ * location point.
+ *
+ * In the constructive frame the curve is the unit-speed Fresnel clothoid
+ * whose scale factor A satisfies A*A = R*t (ISO 19107 clothoid, the curve
+ * SQL/MM §4.2.11 places with the Fresnel integrals):
+ *
+ *   theta(t) = t^2 / (2 A^2)
+ *   kappa(t) = t / A^2
+ *   X(t) = integral_0^t cos(tau^2 / (2 A^2)) d tau
+ *   Y(t) = integral_0^t sin(tau^2 / (2 A^2)) d tau
+ *
+ * t is the arc length from the inflection in that frame, and the Fresnel
+ * limit. The affine placement maps (X, Y) into the coordinate system:
+ *
+ *   P = location + X * refDirection[0] + Y * refDirection[1]
+ *
+ * A negative scale factor is stored for round-trip and evaluated through A^2.
+ * WKT and WKB accept only this ISO body. GeometryFactory::createClothoid
+ * still accepts an arc-length pose (start, theta0, k0, k1, length) and
+ * converts it; that tuple is not a CLOTHOID encoding.
  *
  * The coordinate sequence holds the start point and the integrated end
- * point. It is not a sampling of the spiral. getLinearized builds that
- * sampling. Topology operations that refuse curved components still refuse
- * a clothoid whose curvature is not identically zero; this type does not
- * implement a clothoid DE-9IM, overlay, or buffer.
- *
- * allure-wkt's COMPOUNDCURVE member form CLOTHOID (k0, k1, length), which
- * inherits its start point and tangent, is not accepted here.
+ * point. getLinearized builds the sampling. Topology operations that refuse
+ * curved components still refuse a clothoid whose curvature is not
+ * identically zero. This type does not implement a clothoid DE-9IM, overlay,
+ * or buffer. ST_SpiralCurve (§4.2.12, §7.9, WKB 23) is not implemented.
+ * allure-wkt's inherited-start form CLOTHOID (k0, k1, length) is not accepted.
  */
 class GEOS_DLL Clothoid : public SimpleCurve {
 
@@ -63,23 +98,49 @@ public:
 
     double getLength() const override;
 
-    double getStartTangent() const
-    {
-        return m_theta0;
-    }
+    /// Travel heading at the start, radians from +X. Zero when empty.
+    double getStartTangent() const;
 
-    double getStartCurvature() const
-    {
-        return m_k0;
-    }
+    /// Signed curvature at the start. Zero when empty.
+    double getStartCurvature() const;
 
-    double getEndCurvature() const
-    {
-        return m_k1;
-    }
+    /// Signed curvature at the end. Zero when empty.
+    double getEndCurvature() const;
 
-    /// theta(length). Equals getStartTangent when the clothoid is empty.
+    /// theta at the end of travel. Equals getStartTangent when empty.
     double getEndTangent() const;
+
+    /// ISO/IEC 13249-3:2016 §7.8 ST_ScaleFactor. Zero when empty.
+    double getScaleFactor() const
+    {
+        return m_scale;
+    }
+
+    /// Constructive distance of the start from the inflection (§7.8).
+    double getStartDistance() const
+    {
+        return m_t0;
+    }
+
+    /// Constructive distance of the end from the inflection (§7.8).
+    double getEndDistance() const
+    {
+        return m_t1;
+    }
+
+    /// ST_StartM. Zero when the clothoid is not measured.
+    double getStartM() const
+    {
+        return m_startM;
+    }
+
+    /// ST_EndM. Zero when the clothoid is not measured.
+    double getEndM() const
+    {
+        return m_endM;
+    }
+
+    ClothoidReferenceLocation getReferenceLocation() const;
 
     bool hasCurvedComponents() const override;
 
@@ -110,8 +171,12 @@ public:
 
 protected:
 
-    Clothoid(const algorithm::clothoid::Parameters& parameters,
-             bool hasZ, bool hasM, double z, double m,
+    Clothoid(const ClothoidReferenceLocation& location,
+             double scaleFactor,
+             double startDistance,
+             double endDistance,
+             bool hasZ, bool hasM,
+             double startM, double endM,
              const GeometryFactory& factory);
 
     Clothoid(bool hasZ, bool hasM, const GeometryFactory& factory);
@@ -146,16 +211,32 @@ protected:
 
 private:
 
+    void loadConstructive(algorithm::clothoid::Parameters& curve) const;
+
+    void pointOnCurve(double travel, double& x, double& y, double& z, double& m) const;
+
     Envelope computeClothoidEnvelope() const;
 
     void validateConstruction() const;
 
-    algorithm::clothoid::Parameters parameters() const;
+    double travelHeading(double constructiveDistance) const;
 
-    double m_theta0;
-    double m_k0;
-    double m_k1;
-    double m_length;
+    double travelCurvature(double constructiveDistance) const;
+
+    double m_locX;
+    double m_locY;
+    double m_locZ;
+    double m_ux;
+    double m_uy;
+    double m_uz;
+    double m_vx;
+    double m_vy;
+    double m_vz;
+    double m_scale;
+    double m_t0;
+    double m_t1;
+    double m_startM;
+    double m_endM;
 };
 
 }

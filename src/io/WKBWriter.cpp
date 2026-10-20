@@ -185,41 +185,67 @@ WKBWriter::writeDouble(double value)
 void
 WKBWriter::writeClothoid(const Clothoid& g)
 {
+    // ISO/IEC 13249-3:2016 §5.1.68 Table 15. The type word is always the ISO
+    // code 22 / 1022 / 2022 / 3022, including when the writer flavor is
+    // extended. EWKB's high Z/M bits are not used: 18 is ST_Circle.
+    // An optional SRID flag (0x20000000) is a GEOS extension, written only
+    // for the extended flavor. ISO itself has no SRID in this body.
     writeByteOrder();
-    writeGeometryType(WKBConstants::wkbClothoid, g.getSRID());
+
+    int typeId = WKBConstants::wkbClothoid;
+    if (outputOrdinates.hasZ()) {
+        typeId += 1000;
+    }
+    if (outputOrdinates.hasM()) {
+        typeId += 2000;
+    }
+    if (includeSRID && g.getSRID() != 0 && flavor == WKBConstants::wkbExtended) {
+        typeId |= 0x20000000;
+    }
+    writeInt(typeId);
     writeSRID(g.getSRID());
 
+    // Empty omits the reference-location body (§5.1.68 bd–bg). It is not a
+    // NaN ordinate.
     if (g.isEmpty()) {
-        const double nan = DoubleNotANumber;
-        writeDouble(nan);
-        writeDouble(nan);
-        if (outputOrdinates.hasZ()) {
-            writeDouble(nan);
-        }
-        if (outputOrdinates.hasM()) {
-            writeDouble(nan);
-        }
-        writeDouble(nan);
-        writeDouble(nan);
-        writeDouble(nan);
-        writeDouble(nan);
         return;
     }
 
-    CoordinateXYZM start(DoubleNotANumber, DoubleNotANumber, DoubleNotANumber, DoubleNotANumber);
-    g.getCoordinatesRO()->getAt(0, start);
-    writeDouble(start.x);
-    writeDouble(start.y);
-    if (outputOrdinates.hasZ()) {
-        writeDouble(start.z);
+    const ClothoidReferenceLocation loc = g.getReferenceLocation();
+    const bool hasZ = outputOrdinates.hasZ();
+
+    // Nested affine placement: its own byte order, type 102 or 1102, no SRID.
+    // Location and vectors are raw doubles, not a POINT WKB (§5.1.68).
+    writeByteOrder();
+    int placementType = WKBConstants::wkbAffinePlacement;
+    if (hasZ) {
+        placementType += 1000;
     }
+    writeInt(placementType);
+    writeDouble(loc.x);
+    writeDouble(loc.y);
+    if (hasZ) {
+        writeDouble(loc.z);
+    }
+    writeInt(2);
+    writeDouble(loc.ux);
+    writeDouble(loc.uy);
+    if (hasZ) {
+        writeDouble(loc.uz);
+    }
+    writeDouble(loc.vx);
+    writeDouble(loc.vy);
+    if (hasZ) {
+        writeDouble(loc.vz);
+    }
+
+    writeDouble(g.getScaleFactor());
+    writeDouble(g.getStartDistance());
+    writeDouble(g.getEndDistance());
     if (outputOrdinates.hasM()) {
-        writeDouble(start.m);
+        writeDouble(g.getStartM());
+        writeDouble(g.getEndM());
     }
-    writeDouble(g.getStartTangent());
-    writeDouble(g.getStartCurvature());
-    writeDouble(g.getEndCurvature());
-    writeDouble(g.getLength());
 }
 
 void

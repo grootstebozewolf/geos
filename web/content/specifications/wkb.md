@@ -214,20 +214,30 @@ WKBMultiSurface {
     WKBSurface   surfaces[numSurfaces];
 }
 
-// Provisional fork extension. Not an OGC, ISO 13249-3, or SQL/MM type code.
-// Type 18 was chosen because SQL/MM uses 1..17. ISO Z/M offsets still apply
-// (1018, 2018, 3018), as do the EWKB Z/M flag bits.
-// A NaN x or y ordinate means EMPTY, same convention as POINT EMPTY.
-// theta0 is radians counterclockwise from +X. k0 and k1 are curvatures.
-// length is arc length. Z and M, when present, are constant on this slice.
+// ISO/IEC 13249-3:2016 §5.1.68 Table 15. ST_Clothoid is 22.
+// Z / M / ZM are 1022 / 2022 / 3022. 18 is ST_Circle, not a clothoid.
+// EWKB high Z/M bits are not used for this type. Empty is the type word
+// with the reference-location body omitted (§5.1.68 bd–bg), not a NaN point.
+// The nested affine placement is type 102, or 1102 when the clothoid is Z
+// or ZM (§4.9.3, §7.8.1). Its location and vectors are raw doubles.
+// Measures, when present, are STARTM and ENDM, not an ordinate of the location.
 WKBClothoid {
+    byte                byteOrder;
+    uint32              wkbType; // 22, 1022, 2022, or 3022
+    WKBAffinePlacement  referenceLocation; // omitted when EMPTY
+    double              scaleFactor;
+    double              startDistance;
+    double              endDistance;
+    double              startM; // only when wkbType is 2022 or 3022
+    double              endM;
+}
+
+WKBAffinePlacement {
     byte    byteOrder;
-    uint32  wkbType; // 18
-    Point   start;
-    double  theta0;
-    double  k0;
-    double  k1;
-    double  length;
+    uint32  wkbType; // 102, or 1102 when Z
+    double  location[2 or 3];
+    uint32  numDirections; // 2
+    double  directions[numDirections][2 or 3];
 }
 ```
 

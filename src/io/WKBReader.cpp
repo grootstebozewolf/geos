@@ -346,6 +346,15 @@ WKBReader::readGeometry()
     case WKBConstants::wkbCircularString :
         result = readCircularString();
         break;
+    case WKBConstants::wkbCircle :
+        // ISO/IEC 13249-3:2016 §5.1.68 Table 15. 18/1018/2018/3018 are
+        // ST_Circle. ST_Clothoid is 22/1022/2022/3022.
+        throw ParseException(
+            "WKB type 18 is ST_Circle (ISO/IEC 13249-3:2016 §5.1.68 Table 15) and is not implemented. ST_Clothoid is type 22");
+    case WKBConstants::wkbSpiralCurve :
+        // §4.2.12 and §7.9. Left unimplemented in this slice.
+        throw ParseException(
+            "SQL/MM type is not optional (ISO/IEC 13249-3 §4.2.1) and is not implemented");
     case WKBConstants::wkbClothoid :
         result = readClothoid();
         break;
@@ -437,29 +446,124 @@ WKBReader::readCircularString()
     return factory.createCircularString(std::move(pts));
 }
 
+namespace {
+
+bool
+isGeometryWkbType(uint32_t base)
+{
+    switch (base) {
+    case WKBConstants::wkbPoint:
+    case WKBConstants::wkbLineString:
+    case WKBConstants::wkbPolygon:
+    case WKBConstants::wkbMultiPoint:
+    case WKBConstants::wkbMultiLineString:
+    case WKBConstants::wkbMultiPolygon:
+    case WKBConstants::wkbGeometryCollection:
+    case WKBConstants::wkbCircularString:
+    case WKBConstants::wkbCompoundCurve:
+    case WKBConstants::wkbCurvePolygon:
+    case WKBConstants::wkbMultiCurve:
+    case WKBConstants::wkbMultiSurface:
+    case WKBConstants::wkbCircle:
+    case WKBConstants::wkbClothoid:
+    case WKBConstants::wkbSpiralCurve:
+        return true;
+    default:
+        return false;
+    }
+}
+
+} // namespace
+
 std::unique_ptr<Clothoid>
 WKBReader::readClothoid()
 {
-    // Provisional body: start ordinate, then theta0, k0, k1, length.
-    // NaN x or y is EMPTY, matching POINT EMPTY. The remaining words are
-    // still consumed so the stream stays aligned.
-    readCoordinate();
-    CoordinateXYZM start(ordValues[0], ordValues[1], DoubleNotANumber, DoubleNotANumber);
-    unsigned int ordinate = 2;
-    if (hasZ) {
-        start.z = ordValues[ordinate++];
-    }
-    if (hasM) {
-        start.m = ordValues[ordinate++];
-    }
-    const double theta0 = dis.readDouble();
-    const double k0 = dis.readDouble();
-    const double k1 = dis.readDouble();
-    const double length = dis.readDouble();
-    if (!std::isfinite(start.x) || !std::isfinite(start.y)) {
+    // ISO/IEC 13249-3:2016 §5.1.68. After the clothoid type word (and an
+    // optional EWKB SRID, already consumed), empty is the omitted
+    // reference-location body. A following geometry also begins with a
+    // byte order and a type word, so an embedded empty clothoid is not
+    // delimited. Fewer than 5 bytes, or a known geometry header, is EMPTY
+    // and is not consumed. Type 102 / 1102 is the affine placement.
+    const int clothoidOrder = dis.getOrder();
+    if (dis.size() < 5) {
         return factory.createClothoid(hasZ, hasM);
     }
-    return factory.createClothoid(start, hasZ, hasM, theta0, k0, k1, length);
+
+    const unsigned char nextOrderByte = dis.peekByte(0);
+    if (nextOrderByte != WKBConstants::wkbXDR && nextOrderByte != WKBConstants::wkbNDR) {
+        throw ParseException(
+            "CLOTHOID WKB must follow ISO/IEC 13249-3:2016 §5.1.68 "
+            "(affine placement, scale factor, start distance, end distance). "
+            "The arc-length body is not accepted");
+    }
+    const int nextOrder = (nextOrderByte == WKBConstants::wkbNDR)
+        ? ByteOrderValues::ENDIAN_LITTLE
+        : ByteOrderValues::ENDIAN_BIG;
+    const uint32_t nextType = dis.peekUnsigned(1, nextOrder);
+    const uint32_t nextBase = (nextType & 0xffffu) % 1000u;
+    if (nextBase != static_cast<uint32_t>(WKBConstants::wkbAffinePlacement)) {
+        if (isGeometryWkbType(nextBase)) {
+            return factory.createClothoid(hasZ, hasM);
+        }
+        throw ParseException(
+            "CLOTHOID WKB must follow ISO/IEC 13249-3:2016 §5.1.68 "
+            "(affine placement, scale factor, start distance, end distance). "
+            "The arc-length body is not accepted");
+    }
+
+    dis.readByte();
+    dis.setOrder(nextOrder);
+    const uint32_t placementType = dis.readUnsigned();
+    const uint32_t placementRange = (placementType & 0xffffu) / 1000u;
+    const bool placementZ = (placementRange == 1u) || ((placementType & 0x80000000u) != 0);
+    const bool placementM = (placementRange == 2u) || (placementRange == 3u)
+        || ((placementType & 0x40000000u) != 0);
+    if ((placementType & 0x20000000u) != 0 || placementM || placementZ != hasZ || placementRange > 1u) {
+        throw ParseException(
+            "CLOTHOID reference location must be affine placement type 102 or 1102 "
+            "(ISO/IEC 13249-3:2016 §5.1.68, §7.8.1)");
+    }
+
+    const PrecisionModel& pm = *factory.getPrecisionModel();
+    ClothoidReferenceLocation location;
+    location.x = pm.makePrecise(dis.readDouble());
+    location.y = pm.makePrecise(dis.readDouble());
+    location.z = 0.0;
+    if (hasZ) {
+        location.z = dis.readDouble();
+    }
+    const uint32_t directionCount = dis.readUnsigned();
+    if (directionCount != 2u) {
+        throw ParseException(
+            "CLOTHOID reference location requires exactly 2 reference directions "
+            "(ISO/IEC 13249-3:2016 §7.8.1)");
+    }
+    location.ux = dis.readDouble();
+    location.uy = dis.readDouble();
+    location.uz = 0.0;
+    if (hasZ) {
+        location.uz = dis.readDouble();
+    }
+    location.vx = dis.readDouble();
+    location.vy = dis.readDouble();
+    location.vz = 0.0;
+    if (hasZ) {
+        location.vz = dis.readDouble();
+    }
+
+    // Scale and distances use the clothoid byte order, not the placement's.
+    dis.setOrder(clothoidOrder);
+    const double scale = dis.readDouble();
+    const double startDistance = dis.readDouble();
+    const double endDistance = dis.readDouble();
+    double startM = 0.0;
+    double endM = 0.0;
+    if (hasM) {
+        startM = dis.readDouble();
+        endM = dis.readDouble();
+    }
+    return factory.createClothoid(
+        location, scale, startDistance, endDistance, hasZ, hasM, startM, endM);
 }
 
 std::unique_ptr<CompoundCurve>

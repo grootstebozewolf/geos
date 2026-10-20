@@ -342,6 +342,7 @@ WKTWriter::appendSimpleCurveText(const SimpleCurve& curve, OrdinateSet outputOrd
 void
 WKTWriter::appendClothoidTaggedText(const Clothoid& clothoid, OrdinateSet outputOrdinates, int level, Writer& writer) const
 {
+    // ISO/IEC 13249-3:2016 §5.1.67 <clothoid text representation>.
     (void) level;
     appendTag(clothoid, outputOrdinates, writer);
     if (clothoid.isEmpty()) {
@@ -349,18 +350,49 @@ WKTWriter::appendClothoidTaggedText(const Clothoid& clothoid, OrdinateSet output
         return;
     }
 
+    const bool hasZ = outputOrdinates.hasZ();
+    const bool hasM = outputOrdinates.hasM();
+    const ClothoidReferenceLocation loc = clothoid.getReferenceLocation();
+
+    auto component = [&](const char* keyword, double x, double y, double z) {
+        writer.write(keyword);
+        writer.write(" ");
+        if (hasZ) {
+            writer.write("Z ");
+        }
+        writer.write("(");
+        writer.write(writeNumber(x));
+        writer.write(" ");
+        writer.write(writeNumber(y));
+        if (hasZ) {
+            writer.write(" ");
+            writer.write(writeNumber(z));
+        }
+        writer.write(")");
+    };
+
+    writer.write("(REFERENCELOCATION AFFINEPLACEMENT ");
+    if (hasZ) {
+        writer.write("Z ");
+    }
     writer.write("(");
-    CoordinateXYZM start;
-    clothoid.getCoordinatesRO()->getAt(0, start);
-    appendCoordinate(start, outputOrdinates, writer);
+    component("LOCATION", loc.x, loc.y, loc.z);
+    writer.write(", REFERENCEDIRECTIONS (");
+    component("VECTOR", loc.ux, loc.uy, loc.uz);
     writer.write(", ");
-    writer.write(writeNumber(clothoid.getStartTangent()));
-    writer.write(", ");
-    writer.write(writeNumber(clothoid.getStartCurvature()));
-    writer.write(", ");
-    writer.write(writeNumber(clothoid.getEndCurvature()));
-    writer.write(", ");
-    writer.write(writeNumber(clothoid.getLength()));
+    component("VECTOR", loc.vx, loc.vy, loc.vz);
+    writer.write(")), SCALEFACTOR ");
+    writer.write(writeNumber(clothoid.getScaleFactor()));
+    writer.write(", STARTDISTANCE ");
+    writer.write(writeNumber(clothoid.getStartDistance()));
+    writer.write(", ENDDISTANCE ");
+    writer.write(writeNumber(clothoid.getEndDistance()));
+    if (hasM) {
+        writer.write(", STARTM ");
+        writer.write(writeNumber(clothoid.getStartM()));
+        writer.write(", ENDM ");
+        writer.write(writeNumber(clothoid.getEndM()));
+    }
     writer.write(")");
 }
 

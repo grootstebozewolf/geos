@@ -337,7 +337,7 @@ WKTReader::readGeometryTaggedText(StringTokenizer* tokenizer, OrdinateSet& ordin
         geom = readCircularStringText(tokenizer, newFlags);
     }
     else if(isTypeName(type, "CLOTHOID")) {
-        // Provisional parameter curve. Not an OGC or SQL/MM clothoid claim.
+        // ISO/IEC 13249-3:2016 §5.1.67 <clothoid text representation>.
         geom = readClothoidText(tokenizer, newFlags);
     }
     else if(isTypeName(type, "COMPOUNDCURVE")) {
@@ -372,8 +372,8 @@ WKTReader::readGeometryTaggedText(StringTokenizer* tokenizer, OrdinateSet& ordin
             || isTypeName(type, "GEODESICSTRING")
             || isTypeName(type, "NURBSCURVE")
             || isTypeName(type, "SPIRALCURVE")) {
-        // Named refuse. CLOTHOID is parsed separately as a provisional
-        // parameter curve and is not claimed as the SQL/MM predicate suite.
+        // Named refuse. CLOTHOID is the ISO type (§4.2.11, §5.1.67).
+        // SPIRALCURVE (§4.2.12, §7.9, WKB 23) stays unimplemented.
         throw ParseException(
             "SQL/MM type is not optional (ISO/IEC 13249-3 §4.2.1) and is not implemented",
             type);
@@ -423,32 +423,138 @@ WKTReader::readCircularStringText(StringTokenizer* tokenizer, OrdinateSet& ordin
 std::unique_ptr<Clothoid>
 WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const
 {
+    // ISO/IEC 13249-3:2016 §5.1.67 <clothoid text>.
     std::string nextToken = getNextEmptyOrOpener(tokenizer, ordinateFlags);
     if (nextToken == "EMPTY") {
         return geometryFactory->createClothoid(ordinateFlags.hasZ(), ordinateFlags.hasM());
     }
 
-    CoordinateXYZM start(0.0, 0.0, DoubleNotANumber, DoubleNotANumber);
-    getPreciseCoordinate(tokenizer, ordinateFlags, start);
-    if (getNextCloserOrComma(tokenizer) != ",") {
-        throw ParseException("Expected comma after CLOTHOID start coordinate");
+    if (isNumberNext(tokenizer)) {
+        throw ParseException(
+            "CLOTHOID WKT must follow ISO/IEC 13249-3:2016 §5.1.67 "
+            "(REFERENCELOCATION AFFINEPLACEMENT, SCALEFACTOR, STARTDISTANCE, ENDDISTANCE). "
+            "The arc-length body CLOTHOID (x y, theta0, k0, k1, length) is not accepted");
     }
-    const double theta0 = getNextNumber(tokenizer);
-    if (getNextCloserOrComma(tokenizer) != ",") {
-        throw ParseException("Expected comma after CLOTHOID start tangent");
+
+    const bool hasZ = ordinateFlags.hasZ();
+    const bool hasM = ordinateFlags.hasM();
+
+    auto expect = [&](const char* word) {
+        const std::string got = getNextWord(tokenizer);
+        if (got != word) {
+            throw ParseException(std::string("Expected ") + word + " in CLOTHOID but encountered", got);
+        }
+    };
+
+    auto takeZFlag = [&](std::string& word) {
+        if (word == "Z") {
+            word = getNextWord(tokenizer);
+            return true;
+        }
+        return false;
+    };
+
+    expect("REFERENCELOCATION");
+    std::string word = getNextWord(tokenizer);
+    if (word != "AFFINEPLACEMENT") {
+        throw ParseException("Expected AFFINEPLACEMENT in CLOTHOID but encountered", word);
     }
-    const double k0 = getNextNumber(tokenizer);
-    if (getNextCloserOrComma(tokenizer) != ",") {
-        throw ParseException("Expected comma after CLOTHOID start curvature");
+    word = getNextWord(tokenizer);
+    const bool placementZ = takeZFlag(word);
+    if (word == "EMPTY") {
+        throw ParseException(
+            "CLOTHOID reference location must not be EMPTY (ISO/IEC 13249-3:2016 §4.2.11)");
     }
-    const double k1 = getNextNumber(tokenizer);
-    if (getNextCloserOrComma(tokenizer) != ",") {
-        throw ParseException("Expected comma after CLOTHOID end curvature");
+    if (word != "(") {
+        throw ParseException("Expected '(' after AFFINEPLACEMENT but encountered", word);
     }
-    const double length = getNextNumber(tokenizer);
-    getNextCloser(tokenizer);
+    if (placementZ != hasZ) {
+        throw ParseException(
+            hasZ
+            ? "CLOTHOID Z requires AFFINEPLACEMENT Z (ISO/IEC 13249-3:2016 §7.8.1)"
+            : "CLOTHOID without Z must not use AFFINEPLACEMENT Z (ISO/IEC 13249-3:2016 §7.8.1)");
+    }
+
+    auto readComponents = [&](const char* keyword, double& x, double& y, double& z, bool snap) {
+        word = getNextWord(tokenizer);
+        if (word != keyword) {
+            throw ParseException(std::string("Expected ") + keyword + " in CLOTHOID but encountered", word);
+        }
+        word = getNextWord(tokenizer);
+        const bool componentZ = takeZFlag(word);
+        if (componentZ != hasZ) {
+            throw ParseException(
+                std::string(keyword) + (hasZ
+                    ? " must be Z when CLOTHOID is Z (ISO/IEC 13249-3:2016 §5.1.67, §17.2.22)"
+                    : " must not be Z when CLOTHOID is not Z (ISO/IEC 13249-3:2016 §5.1.67, §17.2.22)"));
+        }
+        if (word != "(") {
+            throw ParseException(std::string("Expected '(' after ") + keyword + " but encountered", word);
+        }
+        x = getNextNumber(tokenizer);
+        y = getNextNumber(tokenizer);
+        z = 0.0;
+        if (hasZ) {
+            z = getNextNumber(tokenizer);
+        }
+        if (snap) {
+            CoordinateXYZM coord(x, y, z, DoubleNotANumber);
+            precisionModel->makePrecise(coord);
+            x = coord.x;
+            y = coord.y;
+            z = hasZ ? coord.z : 0.0;
+        }
+        expect(")");
+    };
+
+    ClothoidReferenceLocation location;
+    readComponents("LOCATION", location.x, location.y, location.z, true);
+    expect(",");
+    expect("REFERENCEDIRECTIONS");
+    expect("(");
+    readComponents("VECTOR", location.ux, location.uy, location.uz, false);
+    expect(",");
+    readComponents("VECTOR", location.vx, location.vy, location.vz, false);
+    expect(")");
+    expect(")");
+
+    expect(",");
+    expect("SCALEFACTOR");
+    const double scale = getNextNumber(tokenizer);
+    expect(",");
+    expect("STARTDISTANCE");
+    const double startDistance = getNextNumber(tokenizer);
+    expect(",");
+    expect("ENDDISTANCE");
+    const double endDistance = getNextNumber(tokenizer);
+
+    double startM = 0.0;
+    double endM = 0.0;
+    word = getNextWord(tokenizer);
+    if (word == ",") {
+        if (!hasM) {
+            throw ParseException(
+                "CLOTHOID STARTM/ENDM require the M or ZM type flag (ISO/IEC 13249-3:2016 §5.1.67)");
+        }
+        expect("STARTM");
+        startM = getNextNumber(tokenizer);
+        expect(",");
+        expect("ENDM");
+        endM = getNextNumber(tokenizer);
+        expect(")");
+    }
+    else if (word == ")") {
+        if (hasM) {
+            throw ParseException(
+                "CLOTHOID M or ZM requires STARTM and ENDM (ISO/IEC 13249-3:2016 §5.1.67)");
+        }
+    }
+    else {
+        throw ParseException("Expected ',' or ')' in CLOTHOID but encountered", word);
+    }
+
     return geometryFactory->createClothoid(
-        start, ordinateFlags.hasZ(), ordinateFlags.hasM(), theta0, k0, k1, length);
+        location, scale, startDistance, endDistance, hasZ, hasM, startM, endM);
 }
 
 std::unique_ptr<Curve>

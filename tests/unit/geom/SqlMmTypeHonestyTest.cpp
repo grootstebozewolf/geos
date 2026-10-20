@@ -176,8 +176,9 @@ void object::test<6>()
 }
 
 // CIRCLE / GEODESICSTRING / NURBSCURVE / SPIRALCURVE stay named refuses.
-// CLOTHOID EMPTY is accepted as a provisional parameter curve. That parse
-// does not claim a SQL/MM predicate suite for the clothoid.
+// CLOTHOID is ST_Clothoid (ISO/IEC 13249-3:2016 §4.2.11, §5.1.67). EMPTY
+// is the standard empty form. This parse does not claim the SQL/MM
+// predicate suite for the clothoid. SPIRALCURVE (§4.2.12, §7.9) stays refused.
 template<>
 template<>
 void object::test<7>()

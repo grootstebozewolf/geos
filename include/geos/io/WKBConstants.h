@@ -43,11 +43,18 @@ namespace WKBConstants {
         wkbCurvePolygon = 10,
         wkbMultiCurve = 11,
         wkbMultiSurface = 12,
-        // Provisional fork extension. Not an OGC, ISO, or SQL/MM type code.
-        // Body layout (after the standard byte order, type word, and optional SRID):
-        //   x, y, [z], [m], theta0, k0, k1, length
-        // Empty clothoids are encoded with NaN ordinates, matching POINT EMPTY.
-        wkbClothoid = 18,
+        // ISO/IEC 13249-3:2016 §5.1.68 Table 15. ST_Circle is not implemented.
+        // 18 is not a clothoid; ST_Clothoid is 22.
+        wkbCircle = 18,
+        // ISO/IEC 13249-3:2016 §5.1.68 Table 15 <wkbclothoid>.
+        // Z / M / ZM are 1022 / 2022 / 3022. The body is an affine placement
+        // (§5.1.68 <wkbreferencelocation>), scale factor, and start/end distance.
+        // Empty is the type word with that body omitted (§5.1.68 bg).
+        wkbClothoid = 22,
+        // ISO/IEC 13249-3:2016 §5.1.68 Table 15. ST_SpiralCurve is not implemented.
+        wkbSpiralCurve = 23,
+        // Support type embedded in clothoid WKB. Z form is 1102.
+        wkbAffinePlacement = 102,
     };
 
     enum wkbFlavour {

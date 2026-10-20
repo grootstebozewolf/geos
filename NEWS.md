@@ -2,10 +2,14 @@
 2027-xx-xx
 
 - New things:
-  - Provisional clothoid segment (WKT keyword CLOTHOID, WKB type 18). Not an
-    OGC or ISO type code. This slice evaluates Fresnel position, a Halley
-    chord-length solve, arc length, an axis-aligned envelope, and
-    linearization. It does not implement clothoid relate, overlay, or buffer.
+  - ST_Clothoid segment per ISO/IEC 13249-3:2016 §4.2.11, §5.1.67, §5.1.68
+    Table 15, and §7.8. WKT keyword CLOTHOID, WKB type 22 (Z/M/ZM
+    1022/2022/3022). 18 is ST_Circle and is not used. The body is an affine
+    placement, scale factor, and start/end distance from the inflection.
+    This slice evaluates that Fresnel curve (including a Halley chord-length
+    solve on the arc-length constructor), arc length, an axis-aligned
+    envelope, and linearization. It does not implement clothoid relate,
+    overlay, or buffer, and it does not implement ST_SpiralCurve (type 23).
   - Add DirectedHausdorffDistance and C API GEOSDirectedHausdorffDistance /
     GEOSSymmetricHausdorffDistance (Martin Davis, Jeroen Bloemscheer, Dan Baston)
 
