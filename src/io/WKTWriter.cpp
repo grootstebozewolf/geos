@@ -19,6 +19,7 @@
  **********************************************************************/
 
 #include <geos/io/WKTWriter.h>
+#include "CurveEndState.h"
 #include <geos/io/Writer.h>
 #include <geos/io/CLocalizer.h>
 #include <geos/io/CheckOrdinatesFilter.h>
@@ -325,7 +326,7 @@ WKTWriter::appendCurveText(const Curve& curve, OrdinateSet outputOrdinates, int 
 }
 
 void
-WKTWriter::appendSimpleCurveText(const SimpleCurve& curve, OrdinateSet outputOrdinates, int level, bool doIndent, Writer& writer) const {
+WKTWriter::appendSimpleCurveText(const SimpleCurve& curve, OrdinateSet outputOrdinates, int level, bool doIndent, Writer& writer, const SimpleCurve* previous) const {
     if (doIndent) {
         indent(level, &writer);
     }
@@ -333,19 +334,30 @@ WKTWriter::appendSimpleCurveText(const SimpleCurve& curve, OrdinateSet outputOrd
     if (curve.getGeometryTypeId() == GEOS_CIRCULARSTRING) {
         appendSimpleCurveTaggedText(curve, outputOrdinates, level, writer);
     } else if (curve.getGeometryTypeId() == GEOS_CLOTHOID) {
-        appendClothoidTaggedText(static_cast<const Clothoid&>(curve), outputOrdinates, level, writer);
+        appendClothoidTaggedText(static_cast<const Clothoid&>(curve), outputOrdinates, level, writer, previous);
     } else {
         appendSequenceText(*curve.getCoordinatesRO(), outputOrdinates, level, false, writer);
     }
 }
 
 void
-WKTWriter::appendClothoidTaggedText(const Clothoid& clothoid, OrdinateSet outputOrdinates, int level, Writer& writer) const
+WKTWriter::appendClothoidTaggedText(const Clothoid& clothoid, OrdinateSet outputOrdinates, int level, Writer& writer, const SimpleCurve* previous) const
 {
     (void) level;
     appendTag(clothoid, outputOrdinates, writer);
     if (clothoid.isEmpty()) {
         writer.write("EMPTY");
+        return;
+    }
+
+    if (previous != nullptr && clothoidContinues(*previous, clothoid)) {
+        writer.write("(");
+        writer.write(writeNumber(clothoid.getStartCurvature()));
+        writer.write(", ");
+        writer.write(writeNumber(clothoid.getEndCurvature()));
+        writer.write(", ");
+        writer.write(writeNumber(clothoid.getLength()));
+        writer.write(")");
         return;
     }
 
@@ -413,7 +425,8 @@ WKTWriter::appendCompoundCurveTaggedText(const CompoundCurve& curve, OrdinateSet
                 indentFirst = true;
             }
 
-            appendSimpleCurveText(*curve.getCurveN(i), outputOrdinates, level + (i > 0), indentFirst, writer);
+            const SimpleCurve* previous = i == 0 ? nullptr : curve.getCurveN(i - 1);
+            appendSimpleCurveText(*curve.getCurveN(i), outputOrdinates, level + (i > 0), indentFirst, writer, previous);
         }
         writer.write(")");
     }

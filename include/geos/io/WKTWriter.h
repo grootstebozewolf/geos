@@ -231,7 +231,8 @@ protected:
     void appendClothoidTaggedText(
         const geom::Clothoid& clothoid,
         OrdinateSet outputOrdinates,
-        int level, Writer& writer) const;
+        int level, Writer& writer,
+        const geom::SimpleCurve* previous = nullptr) const;
 
     void appendCompoundCurveTaggedText(
         const geom::CompoundCurve& lineString,
@@ -286,7 +287,8 @@ protected:
     void appendSimpleCurveText(
         const geom::SimpleCurve& lineString,
         OrdinateSet outputOrdinates,
-        int level, bool doIndent, Writer& writer) const;
+        int level, bool doIndent, Writer& writer,
+        const geom::SimpleCurve* previous = nullptr) const;
 
     void appendSurfaceText(
         const geom::Surface& polygon,

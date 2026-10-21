@@ -3,6 +3,7 @@
 
 - New things:
   - Add ST_Clothoid WKT/WKB (ISO/IEC 13249-3 type 22) (Jeroen Bloemscheer)
+  - CLOTHOID (k0, k1, length) as a non-leading COMPOUNDCURVE member (Jeroen Bloemscheer)
   - Add DirectedHausdorffDistance and C API GEOSDirectedHausdorffDistance /
     GEOSSymmetricHausdorffDistance (Martin Davis, Jeroen Bloemscheer, Dan Baston)
 

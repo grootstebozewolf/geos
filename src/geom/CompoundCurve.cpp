@@ -257,28 +257,44 @@ LineString*
 CompoundCurve::getLinearizedImpl(const algorithm::CurveToLineParams& params) const
 {
     auto seq = std::make_shared<CoordinateSequence>(0, hasZ(), hasM());
-    for (const auto& curve : curves) {
-        const CoordinateSequence* curveSeq = curve->getCoordinatesRO();
+    for (std::size_t i = 0; i < curves.size(); ++i) {
+        const SimpleCurve& curve = *curves[i];
+        const CoordinateSequence* curveSeq = curve.getCoordinatesRO();
+        const bool gap = i > 0
+            && !curves[i - 1]->getEndCoordinate().equals2D(curve.getStartCoordinate());
+        // A clothoid endpoint that does not meet its neighbor is analytical.
+        const bool analyticalStart = gap && curve.getGeometryTypeId() == GEOS_CLOTHOID;
 
-        if (seq->isEmpty()) {
-            seq->add(*curveSeq, static_cast<size_t>(0), 0);
+        auto appendRange = [&seq](const CoordinateSequence& src, std::size_t from, std::size_t to) {
+            if (from <= to && to < src.size()) {
+                seq->add(src, from, to);
+            }
+        };
+
+        if ((seq->isEmpty() || gap) && !analyticalStart) {
+            appendRange(*curveSeq, 0, 0);
         }
 
-        if (curve->getGeometryTypeId() == GEOS_CLOTHOID) {
-            const std::unique_ptr<Geometry> lin = curve->getLinearized(params);
-            const auto* line = detail::down_cast<const LineString*>(lin.get());
-            const CoordinateSequence* linSeq = line->getCoordinatesRO();
-            if (linSeq->size() > 1) {
-                seq->add(*linSeq, 1, linSeq->size() - 1);
+        if (curve.getGeometryTypeId() == GEOS_CLOTHOID) {
+            const std::unique_ptr<LineString> lin = curve.getLinearized(params);
+            const CoordinateSequence* linSeq = lin->getCoordinatesRO();
+            std::size_t last = linSeq->isEmpty() ? 0 : linSeq->size() - 1;
+            // Drop a clothoid's analytical end when the next member starts elsewhere.
+            if (!linSeq->isEmpty()
+                && i + 1 < curves.size()
+                && !curve.getEndCoordinate().equals2D(curves[i + 1]->getStartCoordinate())
+                && last > 0) {
+                --last;
             }
-        } else if (curve->isCurved()) {
-            const CircularString* cs = detail::down_cast<const CircularString*>(curve.get());
+            appendRange(*linSeq, 1, last);
+        } else if (curve.isCurved()) {
+            const CircularString* cs = detail::down_cast<const CircularString*>(&curve);
 
             for (const auto& arc : cs->getArcs()) {
                 arc.addLinearizedPoints(*seq, params);
             }
         } else {
-            seq->add(*curveSeq, 1, curveSeq->size() - 1);
+            appendRange(*curveSeq, 1, curveSeq->isEmpty() ? 0 : curveSeq->size() - 1);
         }
     }
     return getFactory()->createLineString(std::move(seq)).release();
@@ -512,6 +528,11 @@ CompoundCurve::validateConstruction() const
         const CoordinateXY& start = curves[i]->getCoordinatesRO()->front<CoordinateXY>();
 
         if (start != end) {
+            // Clothoid junctions keep both stored coordinates. Reverse swaps which side the gap is on.
+            if (curves[i - 1]->getGeometryTypeId() == GEOS_CLOTHOID
+                || curves[i]->getGeometryTypeId() == GEOS_CLOTHOID) {
+                continue;
+            }
             std::ostringstream ss;
             ss << "Sections of CompoundCurve are not contiguous: " <<
                    "curve " << (i-1) << " ends at " << end <<

@@ -4,9 +4,11 @@
 #include <geos/algorithm/Clothoid.h>
 #include <geos/algorithm/CurveToLineParams.h>
 #include <geos/constants.h>
+#include <geos/geom/CircularString.h>
 #include <geos/geom/Clothoid.h>
 #include <geos/geom/CompoundCurve.h>
 #include <geos/geom/Coordinate.h>
+#include <geos/geom/CoordinateSequence.h>
 #include <geos/geom/GeometryFactory.h>
 #include <geos/geom/LineString.h>
 #include <geos/io/ParseException.h>
@@ -601,6 +603,187 @@ void object::test<14>()
     check(0.0, 0.02, 0.01, 50.0);
     check(0.4, -0.01, -0.04, 30.0);
     check(0.2, 0.1, -0.05, 3.0);
+}
+
+template<>
+template<>
+void object::test<15>()
+{
+    set_test_name("compound curve short form");
+
+    const char* wkt =
+        "COMPOUNDCURVE ("
+        "(116414.353 411964.758, 116410.740 411976.388), "
+        "CLOTHOID (0, 0.005, 48), "
+        "CIRCULARSTRING (116394.687 412021.591, 116284.527 412126.266, 116132.940 412123.450), "
+        "CLOTHOID (0.005, 0, 42), "
+        "(116095.653 412104.165, 115842.170 411961.603))";
+
+    auto curve = reader_.read<CompoundCurve>(wkt);
+    ensure_equals(curve->getNumCurves(), 5u);
+
+    const auto* entry = dynamic_cast<const Clothoid*>(curve->getCurveN(1));
+    const auto* exit = dynamic_cast<const Clothoid*>(curve->getCurveN(3));
+    ensure(entry != nullptr);
+    ensure(exit != nullptr);
+    ensure_equals("value", entry->getStartCurvature(), 0.0, 1e-12);
+    ensure_equals("value", entry->getEndCurvature(), 0.005, 1e-12);
+    ensure_equals("value", entry->getLength(), 48.0, 1e-9);
+    ensure_equals("value", entry->getStartCoordinate().x, 116410.740, 1e-9);
+    ensure_equals("value", entry->getStartCoordinate().y, 411976.388, 1e-9);
+    ensure_equals("value", exit->getStartCurvature(), 0.005, 1e-12);
+    ensure_equals("value", exit->getEndCurvature(), 0.0, 1e-12);
+    ensure_equals("value", exit->getLength(), 42.0, 1e-9);
+
+    const CoordinateXY& arcStart = curve->getCurveN(2)->getStartCoordinate();
+    const CoordinateXY& lineStart = curve->getCurveN(4)->getStartCoordinate();
+    ensure_equals("value", arcStart.x, 116394.687, 0.0);
+    ensure_equals("value", arcStart.y, 412021.591, 0.0);
+    ensure_equals("value", lineStart.x, 116095.653, 0.0);
+    ensure_equals("value", lineStart.y, 412104.165, 0.0);
+    ensure_equals("entry drift", entry->getEndCoordinate().distance(arcStart), 0.0, 2e-3);
+    ensure_equals("exit drift", exit->getEndCoordinate().distance(lineStart), 0.0, 2e-3);
+
+    auto linearized = curve->getLinearized(CurveToLineParams());
+    auto contains = [&linearized](const CoordinateXY& point) {
+        for (std::size_t i = 0; i < linearized->getNumPoints(); ++i) {
+            if (linearized->getCoordinateN(i).equals2D(point)) {
+                return true;
+            }
+        }
+        return false;
+    };
+    ensure(contains(arcStart));
+    ensure(contains(lineStart));
+
+    geos::io::WKTWriter writer;
+    const std::string text = writer.write(curve.get());
+    ensure(text.find("CLOTHOID (0, 0.005, 48)") != std::string::npos);
+    ensure(text.find("CLOTHOID (0.005, 0, 42)") != std::string::npos);
+    ensure(text.find("REFERENCELOCATION") == std::string::npos);
+
+    auto roundTrip = reader_.read<CompoundCurve>(text);
+    ensure_equals("value", roundTrip->getCurveN(1)->getLength(), 48.0, 1e-6);
+    ensure_equals("value", roundTrip->getCurveN(3)->getLength(), 42.0, 1e-6);
+    ensure_equals("value", roundTrip->getCurveN(2)->getStartCoordinate().x, arcStart.x, 0.0);
+    ensure_equals("value", roundTrip->getCurveN(2)->getStartCoordinate().y, arcStart.y, 0.0);
+
+    geos::io::WKBWriter wkbWriter;
+    std::stringstream hex;
+    wkbWriter.writeHEX(*curve, hex);
+    geos::io::WKBReader wkbReader(*factory_);
+    std::stringstream hexIn(hex.str());
+    auto fromWkb = wkbReader.readHEX(hexIn);
+    auto* wkbCurve = dynamic_cast<CompoundCurve*>(fromWkb.get());
+    ensure(wkbCurve != nullptr);
+    ensure_equals(wkbCurve->getCurveN(1)->getGeometryTypeId(), geos::geom::GEOS_CLOTHOID);
+    ensure_equals("value", wkbCurve->getCurveN(2)->getStartCoordinate().x, arcStart.x, 0.0);
+    ensure_equals("entry drift",
+        wkbCurve->getCurveN(1)->getEndCoordinate().distance(arcStart),
+        entry->getEndCoordinate().distance(arcStart), 0.0);
+    const std::string wkbText = writer.write(wkbCurve);
+    ensure(wkbText.find("CLOTHOID (0, 0.005, 48)") != std::string::npos);
+}
+
+template<>
+template<>
+void object::test<16>()
+{
+    set_test_name("short form reverse");
+
+    auto parsed = reader_.read<CompoundCurve>(
+        "COMPOUNDCURVE ("
+        "(116414.353 411964.758, 116410.740 411976.388), "
+        "CLOTHOID (0, 0.005, 48), "
+        "CIRCULARSTRING (116394.687 412021.591, 116284.527 412126.266, 116132.940 412123.450), "
+        "CLOTHOID (0.005, 0, 42), "
+        "(116095.653 412104.165, 115842.170 411961.603))");
+    auto reversed = parsed->reverse();
+    const auto* exit = dynamic_cast<const Clothoid*>(reversed->getCurveN(1));
+    const auto* entry = dynamic_cast<const Clothoid*>(reversed->getCurveN(3));
+    ensure(exit != nullptr);
+    ensure(entry != nullptr);
+    ensure_equals("value", exit->getStartCurvature(), 0.0, 1e-12);
+    ensure_equals("value", exit->getEndCurvature(), -0.005, 1e-12);
+    ensure_equals("value", exit->getLength(), 42.0, 1e-9);
+    ensure_equals("value", entry->getStartCurvature(), -0.005, 1e-12);
+    ensure_equals("value", entry->getEndCurvature(), 0.0, 1e-12);
+    ensure_equals("value", entry->getLength(), 48.0, 1e-9);
+
+    auto clothoid = make(0.0, 0.0, 0.0, 0.0, 0.01, 20.0);
+    const double theta = clothoid->getEndTangent();
+    const CoordinateXY end = clothoid->getEndCoordinate();
+    const double radius = 100.0;
+    const double cx = end.x - std::sin(theta) * radius;
+    const double cy = end.y + std::cos(theta) * radius;
+    const double ang0 = std::atan2(end.y - cy, end.x - cx);
+
+    auto lineCoords = std::make_unique<geos::geom::CoordinateSequence>(static_cast<std::size_t>(2), false, false);
+    lineCoords->setAt(CoordinateXY(-5.0, 0.0), 0);
+    lineCoords->setAt(CoordinateXY(0.0, 0.0), 1);
+    auto arcCoords = std::make_unique<geos::geom::CoordinateSequence>(static_cast<std::size_t>(3), false, false);
+    arcCoords->setAt(end, 0);
+    arcCoords->setAt(CoordinateXY(
+        cx + radius * std::cos(ang0 + 15.0 * geos::MATH_PI / 180.0),
+        cy + radius * std::sin(ang0 + 15.0 * geos::MATH_PI / 180.0)), 1);
+    arcCoords->setAt(CoordinateXY(
+        cx + radius * std::cos(ang0 + 30.0 * geos::MATH_PI / 180.0),
+        cy + radius * std::sin(ang0 + 30.0 * geos::MATH_PI / 180.0)), 2);
+
+    std::vector<std::unique_ptr<SimpleCurve>> parts;
+    std::unique_ptr<SimpleCurve> line = factory_->createLineString(std::move(lineCoords));
+    std::unique_ptr<SimpleCurve> spiral = std::move(clothoid);
+    std::unique_ptr<SimpleCurve> arc = factory_->createCircularString(std::move(arcCoords));
+    parts.push_back(std::move(line));
+    parts.push_back(std::move(spiral));
+    parts.push_back(std::move(arc));
+    auto exact = factory_->createCompoundCurve(std::move(parts));
+
+    geos::io::WKTWriter writer;
+    const std::string text = writer.write(exact.get());
+    ensure(text.find("CLOTHOID (0, 0.01, 20)") != std::string::npos);
+
+    auto exactReversed = exact->reverse();
+    const std::string reversedText = writer.write(exactReversed.get());
+    ensure(reversedText.find("CLOTHOID (-0.01, 0, 20)") != std::string::npos);
+    auto back = reader_.read<CompoundCurve>(reversedText);
+    const auto* member = dynamic_cast<const Clothoid*>(back->getCurveN(1));
+    ensure(member != nullptr);
+    ensure_equals("value", member->getStartCurvature(), -0.01, 1e-12);
+    ensure_equals("value", member->getEndCurvature(), 0.0, 1e-12);
+    ensure_equals("value", member->getLength(), 20.0, 1e-9);
+}
+
+template<>
+template<>
+void object::test<17>()
+{
+    set_test_name("short form rejected outside a continuation");
+
+    ensure_THROW(reader_.read("CLOTHOID (0, 0.005, 48)"), geos::io::ParseException);
+    ensure_THROW(reader_.read("COMPOUNDCURVE (CLOTHOID (0, 0.005, 48), (0 0, 1 0))"), geos::io::ParseException);
+    ensure_THROW(reader_.read("COMPOUNDCURVE ((0 0, 1 0), CLOTHOID (0.01, 0.01, 5))"), geos::util::IllegalArgumentException);
+    ensure_THROW(reader_.read("COMPOUNDCURVE ((0 0, 1 0), CLOTHOID (0, 0.01, 0))"), geos::util::IllegalArgumentException);
+    ensure_THROW(reader_.read("COMPOUNDCURVE ((0 0, 1 0), CLOTHOID (0, 0.01, -3))"), geos::util::IllegalArgumentException);
+    ensure_THROW(reader_.read("COMPOUNDCURVE ((0 0, 1 0), CLOTHOID (NaN, 0.01, 5))"), geos::util::IllegalArgumentException);
+    ensure_THROW(reader_.read("COMPOUNDCURVE ((0 0, 1 0), CLOTHOID (0, Inf, 5))"), geos::util::IllegalArgumentException);
+    ensure_THROW(reader_.read("COMPOUNDCURVE ((0 0, 1 0), (1.1 0, 2 0))"), geos::util::IllegalArgumentException);
+
+    auto mismatch = reader_.read<CompoundCurve>("COMPOUNDCURVE ((0 0, 1 0), CLOTHOID (0.02, 0, 10))");
+    ensure_equals(mismatch->getNumCurves(), 2u);
+    geos::io::WKTWriter writer;
+    const std::string text = writer.write(mismatch.get());
+    ensure(text.find("REFERENCELOCATION") != std::string::npos);
+    ensure(text.find("CLOTHOID (0.02") == std::string::npos);
+
+    auto lifted = reader_.read<CompoundCurve>("COMPOUNDCURVE Z ((0 0 5, 3 0 5), CLOTHOID (0, 0.01, 6))");
+    const auto* clothoid = dynamic_cast<const Clothoid*>(lifted->getCurveN(1));
+    ensure(clothoid != nullptr);
+    ensure(clothoid->hasZ());
+    ensure_equals("value", clothoid->getCoordinatesRO()->getZ(0), 5.0, 0.0);
+    ensure_equals("value", clothoid->getCoordinatesRO()->getZ(1), 5.0, 0.0);
+    const std::string liftedText = writer.write(lifted.get());
+    ensure(liftedText.find("CLOTHOID Z (0, 0.01, 6)") != std::string::npos);
 }
 
 } // namespace tut
