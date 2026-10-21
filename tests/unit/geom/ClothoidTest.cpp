@@ -184,6 +184,23 @@ void object::test<5>()
     set_test_name("linearize and reverse agree on sampled positions");
 
     auto curve = make(0.0, 0.0, 0.2, 0.1, -0.05, 3.0);
+    ensure_equals("value", curve->getStartCurvature(), 0.1, 1e-12);
+    ensure_equals("value", curve->getEndCurvature(), -0.05, 1e-12);
+    ensure_equals("value", std::abs(std::remainder(curve->getStartTangent() - 0.2, 2.0 * geos::MATH_PI)), 0.0, 1e-12);
+    Parameters input;
+    input.x0 = 0.0;
+    input.y0 = 0.0;
+    input.theta0 = 0.2;
+    input.k0 = 0.1;
+    input.k1 = -0.05;
+    input.length = 3.0;
+    double xEnd = 0.0;
+    double yEnd = 0.0;
+    position(input, input.length, xEnd, yEnd);
+    ensure_equals("value", curve->getEndCoordinate().x, xEnd, 1e-9);
+    ensure_equals("value", curve->getEndCoordinate().y, yEnd, 1e-9);
+    ensure(curve->getEndCoordinate().x > 0.0);
+
     auto line = curve->getLinearized(CurveToLineParams::maxDeviation(1e-4));
     ensure_equals(line->getGeometryTypeId(), geos::geom::GEOS_LINESTRING);
     ensure(line->getNumPoints() >= 3u);
@@ -536,6 +553,86 @@ void object::test<12>()
     ensure(!zero->isEmpty());
     ensure_equals("value", zero->getLength(), 0.0, 0.0);
     ensure_equals("value", zero->getStartCoordinate().x, zero->getEndCoordinate().x, 0.0);
+}
+
+template<>
+template<>
+void object::test<13>()
+{
+    set_test_name("decreasing curvature matches arc-length integration");
+
+    // Direct integral of κ(s) = k0 + (k1-k0)*s/L, not the curve's own report.
+    auto check = [&](double x, double y, double theta0, double k0, double k1, double length) {
+        auto curve = factory_->createClothoid(
+            CoordinateXYZM(x, y, geos::DoubleNotANumber, geos::DoubleNotANumber),
+            false, false, theta0, k0, k1, length);
+        ensure_equals("value", curve->getStartCurvature(), k0, 1e-12);
+        ensure_equals("value", curve->getEndCurvature(), k1, 1e-12);
+        const double headingGap = std::abs(std::remainder(
+            curve->getStartTangent() - theta0, 2.0 * geos::MATH_PI));
+        ensure_equals("value", headingGap, 0.0, 1e-12);
+        ensure_equals("value", curve->getStartCoordinate().x, x, 1e-12);
+        ensure_equals("value", curve->getStartCoordinate().y, y, 1e-12);
+
+        Parameters pose;
+        pose.x0 = x;
+        pose.y0 = y;
+        pose.theta0 = theta0;
+        pose.k0 = k0;
+        pose.k1 = k1;
+        pose.length = length;
+        double xe = 0.0;
+        double ye = 0.0;
+        position(pose, length, xe, ye);
+        ensure_equals("value", curve->getEndCoordinate().x, xe, 1e-9);
+        ensure_equals("value", curve->getEndCoordinate().y, ye, 1e-9);
+    };
+
+    // Both curvatures positive, then both negative. Rate is negative in each.
+    check(0.0, 0.0, 0.0, 0.02, 0.01, 50.0);
+    auto easing = make(0.0, 0.0, 0.0, 0.02, 0.01, 50.0);
+    ensure(easing->getEndCoordinate().x > 40.0);
+    ensure(easing->getEndCoordinate().y > 10.0);
+
+    check(3.0, 4.0, 1.0, -0.002, -0.03, 40.0);
+    check(0.0, 0.0, 0.0, 0.0, -0.01, 25.0);
+    check(1.0, 2.0, 0.25, 0.0, 0.125, 8.0);
+}
+
+template<>
+template<>
+void object::test<14>()
+{
+    set_test_name("chord factory keeps decreasing curvature");
+
+    auto check = [&](double theta0, double k0, double k1, double length) {
+        auto pose = factory_->createClothoid(
+            CoordinateXYZM(0.0, 0.0, geos::DoubleNotANumber, geos::DoubleNotANumber),
+            false, false, theta0, k0, k1, length);
+        const CoordinateXY start = pose->getStartCoordinate();
+        const CoordinateXY end = pose->getEndCoordinate();
+        auto placed = factory_->createClothoidFromChord(start, end, k0, k1);
+        ensure_equals("value", placed->getStartCurvature(), k0, 1e-9);
+        ensure_equals("value", placed->getEndCurvature(), k1, 1e-9);
+        ensure_equals("value", placed->getEndCoordinate().x, end.x, 1e-6);
+        ensure_equals("value", placed->getEndCoordinate().y, end.y, 1e-6);
+
+        const geos::algorithm::clothoid::ChordPlacement solved = geos::algorithm::clothoid::placeOnChord(
+            start.x, start.y, end.x, end.y, k0, k1);
+        ensure(solved.solve.converged);
+        const double headingGap = std::abs(std::remainder(
+            placed->getStartTangent() - solved.parameters.theta0, 2.0 * geos::MATH_PI));
+        ensure_equals("value", headingGap, 0.0, 1e-9);
+        double xe = 0.0;
+        double ye = 0.0;
+        position(solved.parameters, solved.parameters.length, xe, ye);
+        ensure_equals("value", placed->getEndCoordinate().x, xe, 1e-8);
+        ensure_equals("value", placed->getEndCoordinate().y, ye, 1e-8);
+    };
+
+    check(0.0, 0.02, 0.01, 50.0);
+    check(0.4, -0.01, -0.04, 30.0);
+    check(0.2, 0.1, -0.05, 3.0);
 }
 
 } // namespace tut

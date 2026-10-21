@@ -370,7 +370,8 @@ public:
      * scaleFactor is the Fresnel constant A (A*A = R*t). startDistance and
      * endDistance are arc lengths from the inflection. When hasM is set,
      * startM and endM are the measure pair; they are not ordinates of the
-     * location.
+     * location. A negative scaleFactor is stored and evaluated as |A|
+     * (§7.8.4 states no sign rule).
      */
     std::unique_ptr<Clothoid> createClothoid(
         const ClothoidReferenceLocation& referenceLocation,
@@ -386,7 +387,8 @@ public:
      *
      * theta0 is radians from +X. k0 and k1 are endpoint curvatures and
      * length is the arc length. This is not a CLOTHOID WKT or WKB body.
-     * Constant curvature has no finite scale factor and is rejected.
+     * k1 < k0 is stored as a reflected placement (curvature falls along the
+     * arc). Constant curvature has no finite scale factor and is rejected.
      * Z, when hasZ is set, is constant (reference directions have zero Z).
      * M, when hasM is set, is a constant STARTM/ENDM pair taken from start.
      */

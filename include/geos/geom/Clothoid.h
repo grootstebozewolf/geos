@@ -70,7 +70,9 @@ struct GEOS_DLL ClothoidReferenceLocation {
  *
  *   P = location + X * refDirection[0] + Y * refDirection[1]
  *
- * A negative scale factor is stored for round-trip and evaluated through A^2.
+ * A negative scale factor is stored so WKT and WKB round-trip. ISO/IEC
+ * 13249-3:2016 §7.8.4 observes and mutates ST_ScaleFactor and states no sign
+ * rule. Evaluation uses A*A, so a negative scale currently matches |A|.
  * WKT and WKB accept only this ISO body. GeometryFactory::createClothoid
  * still accepts an arc-length pose (start, theta0, k0, k1, length) and
  * converts it; that tuple is not a CLOTHOID encoding.

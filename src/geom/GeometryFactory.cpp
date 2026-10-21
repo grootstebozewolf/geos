@@ -18,7 +18,6 @@
  *
  **********************************************************************/
 
-#include <geos/constants.h>
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/CoordinateSequence.h>
 #include <geos/algorithm/Clothoid.h>
@@ -768,7 +767,13 @@ GeometryFactory::createClothoid(
             "ISO/IEC 13249-3:2016 §4.2.11 ST_Clothoid has curvature proportional to distance from a finite inflection (finite scale factor). Constant curvature is not an ST_Clothoid");
     }
 
-    const double direction = (rate > 0.0) ? 1.0 : -1.0;
+    // The constructive clothoid has dκ/dt = +1/A², so a proper rotation can
+    // only increase curvature along the arc. k1 < k0 is that curve reflected
+    // (det(u, v) = -1), with distances still running forward (t1 > t0).
+    // Travel heading is α+θ for a rotation and α−θ for a reflection.
+    // Adding π would flip the tangent while t still increases.
+    const bool reflected = rate < 0.0;
+    const double direction = reflected ? -1.0 : 1.0;
     const double a2 = 1.0 / std::abs(rate);
     const double scale = std::sqrt(a2);
     const double t0 = k0 * a2 * direction;
@@ -791,8 +796,7 @@ GeometryFactory::createClothoid(
         }
     }
     const double headingDt = (t0 * t0) / (2.0 * a2);
-    const double travel = (direction > 0.0) ? headingDt : headingDt + MATH_PI;
-    const double alpha = theta0 - travel;
+    const double alpha = reflected ? (theta0 + headingDt) : (theta0 - headingDt);
     const double c = std::cos(alpha);
     const double s = std::sin(alpha);
 
@@ -800,8 +804,8 @@ GeometryFactory::createClothoid(
     location.ux = c;
     location.uy = s;
     location.uz = 0.0;
-    location.vx = -s;
-    location.vy = c;
+    location.vx = reflected ? s : -s;
+    location.vy = reflected ? -c : c;
     location.vz = 0.0;
     location.x = start.x - xC * location.ux - yC * location.vx;
     location.y = start.y - xC * location.uy - yC * location.vy;
