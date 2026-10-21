@@ -87,14 +87,31 @@ clothoidContinues(const geom::SimpleCurve& previous, const geom::Clothoid& cloth
     if (clothoid.getStartCoordinate().distance(previous.getEndCoordinate()) > 1e-8) {
         return false;
     }
+    const geom::CoordinateSequence* clothoidSeq = clothoid.getCoordinatesRO();
+    const geom::CoordinateSequence* previousSeq = previous.getCoordinatesRO();
     if (clothoid.hasZ()) {
-        const geom::CoordinateSequence* seq = clothoid.getCoordinatesRO();
-        if (seq->getZ(0) != seq->getZ(seq->size() - 1)) {
+        if (clothoidSeq->getZ(0) != clothoidSeq->getZ(clothoidSeq->size() - 1)) {
+            return false;
+        }
+    }
+    if (clothoid.hasZ() || previous.hasZ()) {
+        const double clothoidZ = clothoid.hasZ() ? clothoidSeq->getZ(0) : geos::DoubleNotANumber;
+        const double previousZ = previous.hasZ()
+            ? previousSeq->getZ(previousSeq->size() - 1) : geos::DoubleNotANumber;
+        if (!(clothoidZ == previousZ)) {
             return false;
         }
     }
     if (clothoid.hasM() && clothoid.getStartM() != clothoid.getEndM()) {
         return false;
+    }
+    if (clothoid.hasM() || previous.hasM()) {
+        const double clothoidM = clothoid.hasM() ? clothoidSeq->getM(0) : geos::DoubleNotANumber;
+        const double previousM = previous.hasM()
+            ? previousSeq->getM(previousSeq->size() - 1) : geos::DoubleNotANumber;
+        if (!(clothoidM == previousM)) {
+            return false;
+        }
     }
 
     const geom::ClothoidReferenceLocation loc = clothoid.getReferenceLocation();

@@ -44,6 +44,8 @@
 #include <sstream>
 #include <string>
 #include <cassert>
+#include <cmath>
+#include <limits>
 
 
 using namespace geos::geom;
@@ -419,8 +421,14 @@ WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFla
         return geometryFactory->createClothoid(ordinateFlags.hasZ(), ordinateFlags.hasM());
     }
 
+    if (previous != nullptr && ordinateFlags.hasZ() && !previous->hasZ()) {
+        throw ParseException("CLOTHOID Z is not valid in an XY COMPOUNDCURVE");
+    }
+    if (previous != nullptr && ordinateFlags.hasM() && !previous->hasM()) {
+        throw ParseException("CLOTHOID M is not valid in an XY COMPOUNDCURVE");
+    }
+
     if (isNumberNext(tokenizer)) {
-        // Three scalars continue the previous member. Curvature continuity is not checked.
         if (previous == nullptr) {
             throw ParseException("CLOTHOID (k0, k1, length) must follow another COMPOUNDCURVE member");
         }
@@ -438,9 +446,17 @@ WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFla
         getNextCloser(tokenizer);
 
         double theta0 = 0.0;
-        double ignored = 0.0;
-        if (!curveEndState(*previous, theta0, ignored)) {
+        double inherited = 0.0;
+        if (!curveEndState(*previous, theta0, inherited)) {
             throw ParseException("CLOTHOID continuation has no start tangent");
+        }
+        // #4847 §3.2: κ₀ is the previous member's end curvature. §3.4 checks
+        // κ₁ against the next arc and is warn-only, so that mismatch is kept.
+        // 1e-7 covers the ProRail arc-radius rounding and rejects κ₀ = 0.02
+        // after a line.
+        constexpr double START_CURVATURE_TOLERANCE = 1e-7;
+        if (std::isfinite(k0) && !(std::abs(k0 - inherited) <= START_CURVATURE_TOLERANCE)) {
+            throw ParseException("CLOTHOID start curvature does not match the previous member");
         }
 
         if (!ordinateFlags.hasZ() && previous->hasZ()) {
@@ -454,7 +470,9 @@ WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFla
         CoordinateXYZM start(DoubleNotANumber, DoubleNotANumber, DoubleNotANumber, DoubleNotANumber);
         previous->getCoordinatesRO()->getAt(previous->getNumPoints() - 1, start);
         precisionModel->makePrecise(start);
-        return geometryFactory->createClothoid(start, hasZ, hasM, theta0, k0, k1, length);
+        const double endM = hasM ? start.m : DoubleNotANumber;
+        return geometryFactory->createClothoid(
+                   start, hasZ, hasM, theta0, k0, k1, length, endM, true);
     }
 
     const bool hasZ = ordinateFlags.hasZ();

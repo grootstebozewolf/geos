@@ -118,6 +118,7 @@ StringTokenizer::nextToken()
         iter = str.begin() + static_cast<string::difference_type>(pos);
     }
     char* stopstring;
+    // A leading '+' is accepted. strtod does this for every ordinate.
     double dbl = strtod_with_vc_fix(tok.c_str(), &stopstring);
     if(*stopstring == '\0') {
         ntok = dbl;

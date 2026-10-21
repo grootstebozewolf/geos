@@ -678,15 +678,35 @@ Clothoid::getLinearizedImpl(const algorithm::CurveToLineParams& params) const
     return getFactory()->createLineString(std::move(seq)).release();
 }
 
+void
+Clothoid::assignStoredEndpoints(const CoordinateXYZM& start, const CoordinateXYZM& end)
+{
+    if (isEmpty() || points->size() < 2) {
+        return;
+    }
+    auto seq = points->clone();
+    seq->setAt(start, 0);
+    seq->setAt(end, 1);
+    points = std::move(seq);
+}
+
 Clothoid*
 Clothoid::reverseImpl() const
 {
     if (isEmpty()) {
         return cloneImpl();
     }
-    return getFactory()->createClothoid(
+    CoordinateXYZM start(DoubleNotANumber, DoubleNotANumber, DoubleNotANumber, DoubleNotANumber);
+    CoordinateXYZM end(DoubleNotANumber, DoubleNotANumber, DoubleNotANumber, DoubleNotANumber);
+    points->getAt(0, start);
+    points->getAt(1, end);
+    Clothoid* reversed = getFactory()->createClothoid(
                getReferenceLocation(), m_scale, m_t1, m_t0,
                hasZ(), hasM(), m_endM, m_startM).release();
+    reversed->assignStoredEndpoints(end, start);
+    reversed->m_gapAtStart = m_gapAtEnd;
+    reversed->m_gapAtEnd = m_gapAtStart;
+    return reversed;
 }
 
 Envelope

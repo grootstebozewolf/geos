@@ -13,6 +13,7 @@
  **********************************************************************/
 
 #include <sstream>
+#include <cmath>
 
 #include <geos/algorithm/Orientation.h>
 #include <geos/geom/Clothoid.h>
@@ -26,6 +27,45 @@
 
 namespace geos {
 namespace geom {
+
+namespace {
+
+// grammars-v4 #4847 §3.3. GEOS has no parser warnings, so a drift past this
+// threshold is kept: the next typed coordinate stays, and so does the
+// analytical end. Only a short-form clothoid end (or that end after reverse)
+// may be off the neighboring typed member. ISO junctions stay exact.
+constexpr double DRIFT_WARN_RELATIVE = 1e-9;
+
+const Clothoid*
+shortFormGap(const SimpleCurve& previous, const SimpleCurve& next)
+{
+    if (previous.getGeometryTypeId() == GEOS_CLOTHOID
+            && next.getGeometryTypeId() != GEOS_CLOTHOID) {
+        const auto* clothoid = static_cast<const Clothoid*>(&previous);
+        if (clothoid->gapAllowedAtEnd()) {
+            return clothoid;
+        }
+    }
+    if (next.getGeometryTypeId() == GEOS_CLOTHOID
+            && previous.getGeometryTypeId() != GEOS_CLOTHOID) {
+        const auto* clothoid = static_cast<const Clothoid*>(&next);
+        if (clothoid->gapAllowedAtStart()) {
+            return clothoid;
+        }
+    }
+    return nullptr;
+}
+
+bool
+discussionWouldWarn(double drift, double chord)
+{
+    if (!(chord > 0.0)) {
+        return drift != 0.0;
+    }
+    return std::isfinite(drift) && drift > DRIFT_WARN_RELATIVE * chord;
+}
+
+}
 
 CompoundCurve::CompoundCurve(std::vector<std::unique_ptr<SimpleCurve>>&& p_curves,
                              const GeometryFactory& gf)
@@ -259,21 +299,14 @@ CompoundCurve::getLinearizedImpl(const algorithm::CurveToLineParams& params) con
     auto seq = std::make_shared<CoordinateSequence>(0, hasZ(), hasM());
     for (std::size_t i = 0; i < curves.size(); ++i) {
         const SimpleCurve& curve = *curves[i];
-        const bool isClothoid = curve.getGeometryTypeId() == GEOS_CLOTHOID;
         const bool gap = i > 0
             && !curves[i - 1]->getEndCoordinate().equals2D(curve.getStartCoordinate());
 
-        // A clothoid endpoint that does not meet its neighbor is analytical.
-        if ((seq->isEmpty() || gap) && !(gap && isClothoid)) {
+        // Keep both sides of a gap. A short-form analytical end is not dropped.
+        if (seq->isEmpty() || gap) {
             seq->add(*curve.getCoordinatesRO(), static_cast<size_t>(0), 0);
         }
         curve.addLinearizedPoints(*seq, params);
-
-        // Drop a clothoid's analytical end when the next member starts elsewhere.
-        if (isClothoid && i + 1 < curves.size() && seq->size() > 1
-                && !curve.getEndCoordinate().equals2D(curves[i + 1]->getStartCoordinate())) {
-            seq->pop_back();
-        }
     }
     return getFactory()->createLineString(std::move(seq)).release();
 }
@@ -526,17 +559,21 @@ CompoundCurve::validateConstruction() const
         const CoordinateXY& start = curves[i]->getCoordinatesRO()->front<CoordinateXY>();
 
         if (start != end) {
-            // Clothoid junctions keep both stored coordinates. Reverse swaps which side the gap is on.
-            if (curves[i - 1]->getGeometryTypeId() == GEOS_CLOTHOID
-                || curves[i]->getGeometryTypeId() == GEOS_CLOTHOID) {
-                continue;
+            const Clothoid* gapped = shortFormGap(*curves[i - 1], *curves[i]);
+            if (gapped == nullptr) {
+                std::ostringstream ss;
+                ss << "Sections of CompoundCurve are not contiguous: " <<
+                       "curve " << (i-1) << " ends at " << end <<
+                       " ; curve " << i << " begins at " << start;
+                throw util::IllegalArgumentException(ss.str());
             }
-            std::ostringstream ss;
-            ss << "Sections of CompoundCurve are not contiguous: " <<
-                   "curve " << (i-1) << " ends at " << end <<
-                   " ; curve " << i << " begins at " << start;
-
-            throw util::IllegalArgumentException(ss.str());
+            const double drift = start.distance(end);
+            const double chord = gapped->getStartCoordinate().distance(gapped->getEndCoordinate());
+            if (!std::isfinite(drift) || !std::isfinite(chord)) {
+                throw util::IllegalArgumentException("Clothoid junction drift is not finite");
+            }
+            // Lenient: discussionWouldWarn is the §3.3 signal, not an error.
+            (void) discussionWouldWarn(drift, chord);
         }
     }
 }

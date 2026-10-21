@@ -98,6 +98,18 @@ public:
 
     ClothoidReferenceLocation getReferenceLocation() const;
 
+    /// Short-form WKT may leave this end off the next typed coordinate.
+    /// WKB does not keep the flag. Reverse moves it to the start.
+    bool gapAllowedAtEnd() const
+    {
+        return m_gapAtEnd;
+    }
+
+    bool gapAllowedAtStart() const
+    {
+        return m_gapAtStart;
+    }
+
     bool hasCurvedComponents() const override;
 
     bool hasCurvedTypes() const override
@@ -187,6 +199,8 @@ private:
     /// differ only by rounding in the evaluation of the reference location.
     void snapEndpoint(std::size_t index, const CoordinateXY& target);
 
+    void assignStoredEndpoints(const CoordinateXYZM& start, const CoordinateXYZM& end);
+
     Coordinate m_origin;
     Coordinate m_u;
     Coordinate m_v;
@@ -195,6 +209,8 @@ private:
     double m_t1;
     double m_startM;
     double m_endM;
+    bool m_gapAtStart = false;
+    bool m_gapAtEnd = false;
 };
 
 }
