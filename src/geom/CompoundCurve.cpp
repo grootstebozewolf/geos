@@ -257,12 +257,23 @@ LineString*
 CompoundCurve::getLinearizedImpl(const algorithm::CurveToLineParams& params) const
 {
     auto seq = std::make_shared<CoordinateSequence>(0, hasZ(), hasM());
-    for (const auto& curve : curves) {
-        if (seq->isEmpty()) {
-            const CoordinateSequence* curveSeq = curve->getCoordinatesRO();
-            seq->add(*curveSeq, static_cast<size_t>(0), 0);
+    for (std::size_t i = 0; i < curves.size(); ++i) {
+        const SimpleCurve& curve = *curves[i];
+        const bool isClothoid = curve.getGeometryTypeId() == GEOS_CLOTHOID;
+        const bool gap = i > 0
+            && !curves[i - 1]->getEndCoordinate().equals2D(curve.getStartCoordinate());
+
+        // A clothoid endpoint that does not meet its neighbor is analytical.
+        if ((seq->isEmpty() || gap) && !(gap && isClothoid)) {
+            seq->add(*curve.getCoordinatesRO(), static_cast<size_t>(0), 0);
         }
-        curve->addLinearizedPoints(*seq, params);
+        curve.addLinearizedPoints(*seq, params);
+
+        // Drop a clothoid's analytical end when the next member starts elsewhere.
+        if (isClothoid && i + 1 < curves.size() && seq->size() > 1
+                && !curve.getEndCoordinate().equals2D(curves[i + 1]->getStartCoordinate())) {
+            seq->pop_back();
+        }
     }
     return getFactory()->createLineString(std::move(seq)).release();
 }
@@ -515,6 +526,11 @@ CompoundCurve::validateConstruction() const
         const CoordinateXY& start = curves[i]->getCoordinatesRO()->front<CoordinateXY>();
 
         if (start != end) {
+            // Clothoid junctions keep both stored coordinates. Reverse swaps which side the gap is on.
+            if (curves[i - 1]->getGeometryTypeId() == GEOS_CLOTHOID
+                || curves[i]->getGeometryTypeId() == GEOS_CLOTHOID) {
+                continue;
+            }
             std::ostringstream ss;
             ss << "Sections of CompoundCurve are not contiguous: " <<
                    "curve " << (i-1) << " ends at " << end <<

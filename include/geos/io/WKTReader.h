@@ -42,6 +42,7 @@ class LineString;
 class LinearRing;
 class CircularString;
 class Clothoid;
+class SimpleCurve;
 class CompoundCurve;
 class Polygon;
 class CurvePolygon;
@@ -125,7 +126,7 @@ protected:
     static std::string getNextCloserOrComma(io::StringTokenizer* tokenizer);
     static std::string getNextCloser(io::StringTokenizer* tokenizer);
     static std::string getNextWord(io::StringTokenizer* tokenizer);
-    std::unique_ptr<geom::Geometry> readGeometryTaggedText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags, const geom::GeometryTypeId* emptyType = nullptr) const;
+    std::unique_ptr<geom::Geometry> readGeometryTaggedText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags, const geom::GeometryTypeId* emptyType = nullptr, const geom::SimpleCurve* previous = nullptr) const;
 
     std::unique_ptr<geom::Point> readPointText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const;
     std::unique_ptr<geom::LineString> readLineStringText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const;
@@ -136,14 +137,14 @@ protected:
     std::unique_ptr<geom::MultiPolygon> readMultiPolygonText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const;
     std::unique_ptr<geom::GeometryCollection> readGeometryCollectionText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const;
     std::unique_ptr<geom::CircularString> readCircularStringText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const;
-    std::unique_ptr<geom::Clothoid> readClothoidText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const;
+    std::unique_ptr<geom::Clothoid> readClothoidText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags, const geom::SimpleCurve* previous = nullptr) const;
     std::unique_ptr<geom::CompoundCurve> readCompoundCurveText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const;
     std::unique_ptr<geom::CurvePolygon> readCurvePolygonText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const;
     std::unique_ptr<geom::MultiCurve> readMultiCurveText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const;
     std::unique_ptr<geom::MultiSurface> readMultiSurfaceText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const;
 
     /// Read the contents of a LINEARRING, LINESTRING, CIRCULARSTRING, or COMPOUNDCURVE
-    std::unique_ptr<geom::Curve> readCurveText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const;
+    std::unique_ptr<geom::Curve> readCurveText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags, const geom::SimpleCurve* previous = nullptr) const;
 
     /// Read the contents of a POLYGON or a CURVEPOLYGON
     std::unique_ptr<geom::Geometry> readSurfaceText(io::StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const;

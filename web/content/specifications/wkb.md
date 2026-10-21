@@ -234,6 +234,7 @@ WKBAffinePlacement {
 }
 ```
 
+`CLOTHOID (k0, k1, length)` has no WKB code. A compound curve writes that member as `WKBClothoid`.
 
 ### Example
 

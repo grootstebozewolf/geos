@@ -246,6 +246,7 @@ WKBWriter::writeCompoundCurve(const CompoundCurve& g)
     for (std::size_t i = 0; i < g.getNumCurves(); i++) {
         const SimpleCurve& section = *g.getCurveN(i);
         if (section.getGeometryTypeId() == GEOS_CLOTHOID) {
+            // No WKB code for CLOTHOID (k0, k1, length). Write the ISO type 22 member.
             const OrdinateSet savedOrdinates = outputOrdinates;
             write(section, *outStream);
             outputOrdinates = savedOrdinates;

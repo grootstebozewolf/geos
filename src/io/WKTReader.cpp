@@ -18,6 +18,7 @@
  **********************************************************************/
 
 #include <geos/io/WKTReader.h>
+#include "CurveEndState.h"
 #include <geos/io/StringTokenizer.h>
 #include <geos/io/ParseException.h>
 #include <geos/io/CLocalizer.h>
@@ -304,7 +305,7 @@ WKTReader::getNextWord(StringTokenizer* tokenizer)
 }
 
 std::unique_ptr<Geometry>
-WKTReader::readGeometryTaggedText(StringTokenizer* tokenizer, OrdinateSet& ordinateFlags, const GeometryTypeId* emptyType) const
+WKTReader::readGeometryTaggedText(StringTokenizer* tokenizer, OrdinateSet& ordinateFlags, const GeometryTypeId* emptyType, const SimpleCurve* previous) const
 {
     if (parseDepth_ >= MAX_PARSE_DEPTH) {
         throw ParseException("Input geometry exceeds nesting depth limit");
@@ -337,7 +338,7 @@ WKTReader::readGeometryTaggedText(StringTokenizer* tokenizer, OrdinateSet& ordin
         geom = readCircularStringText(tokenizer, newFlags);
     }
     else if(isTypeName(type, "CLOTHOID")) {
-        geom = readClothoidText(tokenizer, newFlags);
+        geom = readClothoidText(tokenizer, newFlags, previous);
     }
     else if(isTypeName(type, "COMPOUNDCURVE")) {
         geom = readCompoundCurveText(tokenizer, newFlags);
@@ -411,7 +412,7 @@ WKTReader::readCircularStringText(StringTokenizer* tokenizer, OrdinateSet& ordin
 }
 
 std::unique_ptr<Clothoid>
-WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const
+WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFlags, const SimpleCurve* previous) const
 {
     std::string nextToken = getNextEmptyOrOpener(tokenizer, ordinateFlags);
     if (nextToken == "EMPTY") {
@@ -419,7 +420,41 @@ WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFla
     }
 
     if (isNumberNext(tokenizer)) {
-        throw ParseException("CLOTHOID WKT requires REFERENCELOCATION");
+        // Three scalars continue the previous member. Curvature continuity is not checked.
+        if (previous == nullptr) {
+            throw ParseException("CLOTHOID (k0, k1, length) must follow another COMPOUNDCURVE member");
+        }
+        const double k0 = getNextNumber(tokenizer);
+        std::string comma = getNextWord(tokenizer);
+        if (comma != ",") {
+            throw ParseException("Expected ',' in CLOTHOID but encountered", comma);
+        }
+        const double k1 = getNextNumber(tokenizer);
+        comma = getNextWord(tokenizer);
+        if (comma != ",") {
+            throw ParseException("Expected ',' in CLOTHOID but encountered", comma);
+        }
+        const double length = getNextNumber(tokenizer);
+        getNextCloser(tokenizer);
+
+        double theta0 = 0.0;
+        double ignored = 0.0;
+        if (!curveEndState(*previous, theta0, ignored)) {
+            throw ParseException("CLOTHOID continuation has no start tangent");
+        }
+
+        if (!ordinateFlags.hasZ() && previous->hasZ()) {
+            ordinateFlags.setZ(true);
+        }
+        if (!ordinateFlags.hasM() && previous->hasM()) {
+            ordinateFlags.setM(true);
+        }
+        const bool hasZ = ordinateFlags.hasZ();
+        const bool hasM = ordinateFlags.hasM();
+        CoordinateXYZM start(DoubleNotANumber, DoubleNotANumber, DoubleNotANumber, DoubleNotANumber);
+        previous->getCoordinatesRO()->getAt(previous->getNumPoints() - 1, start);
+        precisionModel->makePrecise(start);
+        return geometryFactory->createClothoid(start, hasZ, hasM, theta0, k0, k1, length);
     }
 
     const bool hasZ = ordinateFlags.hasZ();
@@ -539,7 +574,7 @@ WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFla
 }
 
 std::unique_ptr<Curve>
-WKTReader::readCurveText(StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const
+WKTReader::readCurveText(StringTokenizer* tokenizer, OrdinateSet& ordinateFlags, const SimpleCurve* previous) const
 {
     int type = tokenizer->peekNextToken();
     if (type == '(') {
@@ -547,7 +582,7 @@ WKTReader::readCurveText(StringTokenizer* tokenizer, OrdinateSet& ordinateFlags)
     }
 
     GeometryTypeId defaultType = GEOS_LINESTRING;
-    auto component = readGeometryTaggedText(tokenizer, ordinateFlags, &defaultType);
+    auto component = readGeometryTaggedText(tokenizer, ordinateFlags, &defaultType, previous);
     if (dynamic_cast<Curve*>(component.get())) {
         return std::unique_ptr<Curve>(static_cast<Curve*>(component.release()));
     }
@@ -582,7 +617,8 @@ WKTReader::readCompoundCurveText(StringTokenizer* tokenizer, OrdinateSet& ordina
 
     std::vector<std::unique_ptr<SimpleCurve>> curves;
     do {
-        auto curve = readCurveText(tokenizer, ordinateFlags);
+        const SimpleCurve* previous = curves.empty() ? nullptr : curves.back().get();
+        auto curve = readCurveText(tokenizer, ordinateFlags, previous);
         if (dynamic_cast<SimpleCurve*>(curve.get())) {
             curves.emplace_back(static_cast<SimpleCurve*>(curve.release()));
         } else {
