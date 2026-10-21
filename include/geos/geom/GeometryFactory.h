@@ -376,11 +376,15 @@ public:
 
     /// Construct a clothoid from an arc-length pose. Constant curvature is rejected.
     /// When hasM is set, endM is stored separately from start.m.
+    /// The stored start coordinate is the given start, bit for bit.
+    /// continuation marks a short-form COMPOUNDCURVE member, whose end may
+    /// miss the next typed coordinate.
     std::unique_ptr<Clothoid> createClothoid(
         const CoordinateXYZM& start,
         bool hasZ, bool hasM,
         double theta0, double k0, double k1, double length,
-        double endM = std::numeric_limits<double>::quiet_NaN()) const;
+        double endM = std::numeric_limits<double>::quiet_NaN(),
+        bool continuation = false) const;
 
     /// Construct an EMPTY CompoundCurve
     std::unique_ptr<CompoundCurve> createCompoundCurve() const;

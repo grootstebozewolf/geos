@@ -33,7 +33,7 @@ curveEndState(const geom::SimpleCurve& curve, double& heading, double& curvature
 
     if (curve.getGeometryTypeId() == geom::GEOS_CLOTHOID) {
         const auto& clothoid = static_cast<const geom::Clothoid&>(curve);
-        heading = clothoid.getEndTangent();
+        heading = clothoid.getEndHeading();
         curvature = clothoid.getEndCurvature();
         return true;
     }
@@ -87,20 +87,37 @@ clothoidContinues(const geom::SimpleCurve& previous, const geom::Clothoid& cloth
     if (clothoid.getStartCoordinate().distance(previous.getEndCoordinate()) > 1e-8) {
         return false;
     }
+    const geom::CoordinateSequence* clothoidSeq = clothoid.getCoordinatesRO();
+    const geom::CoordinateSequence* previousSeq = previous.getCoordinatesRO();
     if (clothoid.hasZ()) {
-        const geom::CoordinateSequence* seq = clothoid.getCoordinatesRO();
-        if (seq->getZ(0) != seq->getZ(seq->size() - 1)) {
+        if (clothoidSeq->getZ(0) != clothoidSeq->getZ(clothoidSeq->size() - 1)) {
+            return false;
+        }
+    }
+    if (clothoid.hasZ() || previous.hasZ()) {
+        const double clothoidZ = clothoid.hasZ() ? clothoidSeq->getZ(0) : geos::DoubleNotANumber;
+        const double previousZ = previous.hasZ()
+            ? previousSeq->getZ(previousSeq->size() - 1) : geos::DoubleNotANumber;
+        if (!(clothoidZ == previousZ)) {
             return false;
         }
     }
     if (clothoid.hasM() && clothoid.getStartM() != clothoid.getEndM()) {
         return false;
     }
+    if (clothoid.hasM() || previous.hasM()) {
+        const double clothoidM = clothoid.hasM() ? clothoidSeq->getM(0) : geos::DoubleNotANumber;
+        const double previousM = previous.hasM()
+            ? previousSeq->getM(previousSeq->size() - 1) : geos::DoubleNotANumber;
+        if (!(clothoidM == previousM)) {
+            return false;
+        }
+    }
 
     const geom::ClothoidReferenceLocation loc = clothoid.getReferenceLocation();
-    const double u = std::hypot(loc.ux, loc.uy, loc.uz);
-    const double v = std::hypot(loc.vx, loc.vy, loc.vz);
-    const double dot = loc.ux * loc.vx + loc.uy * loc.vy + loc.uz * loc.vz;
+    const double u = std::hypot(loc.u.x, loc.u.y, loc.u.z);
+    const double v = std::hypot(loc.v.x, loc.v.y, loc.v.z);
+    const double dot = loc.u.x * loc.v.x + loc.u.y * loc.v.y + loc.u.z * loc.v.z;
     if (std::abs(u - 1.0) > 1e-8 || std::abs(v - 1.0) > 1e-8 || std::abs(dot) > 1e-8) {
         return false;
     }
@@ -110,7 +127,7 @@ clothoidContinues(const geom::SimpleCurve& previous, const geom::Clothoid& cloth
     if (!curveEndState(previous, heading, curvature)) {
         return false;
     }
-    const double turn = std::remainder(clothoid.getStartTangent() - heading, 2.0 * MATH_PI);
+    const double turn = std::remainder(clothoid.getStartHeading() - heading, 2.0 * MATH_PI);
     if (!(std::abs(turn) <= 1e-8)) {
         return false;
     }

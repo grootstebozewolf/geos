@@ -752,7 +752,7 @@ GeometryFactory::createClothoid(
     const CoordinateXYZM& start,
     bool hasZ, bool hasM,
     double theta0, double k0, double k1, double length,
-    double endM) const
+    double endM, bool continuation) const
 {
     if (!std::isfinite(start.x) || !std::isfinite(start.y) || !std::isfinite(theta0)
             || !std::isfinite(k0) || !std::isfinite(k1) || !std::isfinite(length)
@@ -796,10 +796,34 @@ GeometryFactory::createClothoid(
                           start.x - offset.x * location.u.x - offset.y * location.v.x,
                           start.y - offset.x * location.u.y - offset.y * location.v.y,
                           hasZ ? start.z : 0.0);
+    // (origin + offset) is not always the requested start. Shift the origin
+    // until the evaluated start matches bit for bit.
+    for (int pass = 0; pass < 3; ++pass) {
+        const double x = location.origin.x + offset.x * location.u.x + offset.y * location.v.x;
+        const double y = location.origin.y + offset.x * location.u.y + offset.y * location.v.y;
+        if (x == start.x && y == start.y) {
+            break;
+        }
+        location.origin.x += start.x - x;
+        location.origin.y += start.y - y;
+    }
 
     const double startM = hasM ? start.m : 0.0;
     const double storedEndM = hasM ? endM : 0.0;
-    return createClothoid(location, scale, t0, t1, hasZ, hasM, startM, storedEndM);
+    std::unique_ptr<Clothoid> curve = createClothoid(
+        location, scale, t0, t1, hasZ, hasM, startM, storedEndM);
+    CoordinateXYZM storedEnd(DoubleNotANumber, DoubleNotANumber, DoubleNotANumber, DoubleNotANumber);
+    curve->getCoordinatesRO()->getAt(1, storedEnd);
+    CoordinateXYZM exactStart = start;
+    if (!hasZ) {
+        exactStart.z = DoubleNotANumber;
+    }
+    if (!hasM) {
+        exactStart.m = DoubleNotANumber;
+    }
+    curve->assignStoredEndpoints(exactStart, storedEnd);
+    curve->m_gapAtEnd = continuation;
+    return curve;
 }
 
 /*public*/
