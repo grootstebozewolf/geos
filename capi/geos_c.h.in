@@ -6189,7 +6189,13 @@ extern int GEOS_DLL GEOSHilbertCode(
 * input geometry.  If the callback returns an error, returned geometry will be
 * NULL.  Z and M values, if present, are not modified by this function.
 *
-* Curved geometry types are supported since GEOS 3.13.
+* Curved geometry types are supported since GEOS 3.13. Arcs are transformed
+* pointwise: the callback is applied to each control point, and the result
+* is the circular arc through the transformed control points. That arc is
+* the image of the input arc for a similarity (translation, rotation,
+* uniform scale, or reflection). It is a different curve for a non-uniform
+* scale, shear, or any other non-similarity. Linearize with GEOSCurveToLine
+* before transforming to approximate the image of the arc.
 *
 * \param[in] g Input geometry
 * \param[in] callback a function to be executed for each coordinate in the
@@ -6211,7 +6217,13 @@ extern GEOSGeometry GEOS_DLL *GEOSGeom_transformXY(
 * input geometry.  If the callback returns an error, returned geometry will be
 * NULL.  M values, if present, are not modified by this function.
 *
-* Curved geometry types are supported since GEOS 3.13.
+* Curved geometry types are supported since GEOS 3.13. Arcs are transformed
+* pointwise: the callback is applied to each control point, and the result
+* is the circular arc through the transformed control points. That arc is
+* the image of the input arc for a similarity (translation, rotation,
+* uniform scale, or reflection). It is a different curve for a non-uniform
+* scale, shear, or any other non-similarity. Linearize with GEOSCurveToLine
+* before transforming to approximate the image of the arc.
 *
 * \param[in] g Input geometry
 * \param[in] callback a function to be executed for each coordinate in the

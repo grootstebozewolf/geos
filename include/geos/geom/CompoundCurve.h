@@ -119,6 +119,11 @@ protected:
 
     void geometryChangedAction() override
     {
+        // geometryChanged() does not walk these sections. Refresh them first
+        // so a cached circular arc is not left on the pre-edit circle.
+        for (auto& curve : curves) {
+            curve->geometryChanged();
+        }
         envelope = computeEnvelopeInternal();
     }
 

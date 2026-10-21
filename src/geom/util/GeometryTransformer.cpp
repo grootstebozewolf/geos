@@ -245,6 +245,8 @@ GeometryTransformer::transformCircularString(
               << std::endl;
 #endif
 
+    // Control points are transformed independently. The arc through those
+    // points is the image of the input arc only for a similarity.
     return factory->createCircularString(
                transformCoordinates(geom->getCoordinatesRO(), geom));
 }

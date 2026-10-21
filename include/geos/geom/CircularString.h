@@ -81,6 +81,9 @@ protected:
 
     void geometryChangedAction() override
     {
+        // Each cached arc owns a copy of its control points. Drop them when
+        // the coordinate sequence changes, or a later stroke follows the old circle.
+        arcs.clear();
         envelope = computeEnvelopeInternal(false);
     }
 

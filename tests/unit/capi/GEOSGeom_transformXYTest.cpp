@@ -290,6 +290,7 @@ void object::test<13>() {
     GEOSGeom_destroy(out);
 }
 
+// Pointwise: a non-uniform scale moves the control points and keeps the type.
 template <>
 template <>
 void object::test<14>() {
@@ -299,6 +300,152 @@ void object::test<14>() {
     result_ = GEOSGeom_transformXY(input_, SCALE_2_3, nullptr);
 
     ensure_equals(toWKT(result_), "CIRCULARSTRING (0 0, 2 3, 4 0)");
+}
+
+static int
+scale21(double* x, double* y, void* userdata)
+{
+    (void) y;
+    (void) userdata;
+    *x *= 2;
+    return 1;
+}
+
+static int
+shear(double* x, double* y, void* userdata)
+{
+    (void) userdata;
+    *x += *y;
+    return 1;
+}
+
+static int
+rot90(double* x, double* y, void* userdata)
+{
+    (void) userdata;
+    double x0 = *x;
+    *x = -*y;
+    *y = x0;
+    return 1;
+}
+
+// Gap between the arc through the transformed control points and the
+// transform applied to a stroking of the original arc. Stroking the input
+// first fills the arc cache; the transformed copy must still follow the
+// new control points.
+static double
+arcImageDeviation(const GEOSGeometry* curve, GEOSTransformXYCallback cb)
+{
+    GEOSCurveToLineParams* params = GEOSCurveToLineParams_create();
+    ensure(params != nullptr);
+    ensure_equals(GEOSCurveToLineParams_setMaxStepDegrees(params, 0.5), 1);
+
+    GEOSGeometry* stroked = GEOSCurveToLine(curve, params);
+    GEOSGeometry* image = GEOSGeom_transformXY(stroked, cb, nullptr);
+    GEOSGeometry* moved = GEOSGeom_transformXY(curve, cb, nullptr);
+    GEOSGeometry* movedStroke = GEOSCurveToLine(moved, params);
+
+    double dist = -1;
+    int rc = 0;
+    if (image != nullptr && movedStroke != nullptr) {
+        rc = GEOSHausdorffDistance(image, movedStroke, &dist);
+    }
+
+    GEOSGeom_destroy(stroked);
+    GEOSGeom_destroy(image);
+    GEOSGeom_destroy(moved);
+    GEOSGeom_destroy(movedStroke);
+    GEOSCurveToLineParams_destroy(params);
+
+    ensure_equals(rc, 1);
+    return dist;
+}
+
+// CIRCULARSTRING (1 0, 0.6 0.8, -1 0) is the upper unit semicircle.
+// (2, 1) scale sends it to the half-ellipse x^2/4 + y^2 = 1.
+// The arc through (2 0, 1.2 0.8, -2 0) is the circle
+// Q(x, y) = x^2 + y^2 + (12/5) y - 4 = 0, center (0, -6/5),
+// radius sqrt(136)/5. On the axis that arc is (-6 + sqrt(136))/5
+// and the ellipse is y = 1, a gap of (-11 + sqrt(136))/5 ≈ 0.13238
+// (about 7% of the semi-major axis). Q is 0 at the image of the
+// control point (3/5, 4/5) and reaches exactly 12/25 on the ellipse.
+template <>
+template <>
+void object::test<15>()
+{
+    input_ = fromWKT("CIRCULARSTRING (1 0, 0.6 0.8, -1 0)");
+    result_ = GEOSGeom_transformXY(input_, scale21, nullptr);
+
+    ensure(result_ != nullptr);
+    expected_ = fromWKT("CIRCULARSTRING (2 0, 1.2 0.8, -2 0)");
+    ensure_geometry_equals_exact(result_, expected_, 1e-12);
+
+    double dev = arcImageDeviation(input_, scale21);
+    ensure_equals("scale(2, 1) deviation", dev, 0.1323807579381204, 1e-4);
+}
+
+// Shear is not a similarity either. The pointwise arc is a different curve.
+template <>
+template <>
+void object::test<16>()
+{
+    input_ = fromWKT("CIRCULARSTRING (1 0, 0.6 0.8, -1 0)");
+    result_ = GEOSGeom_transformXY(input_, shear, nullptr);
+
+    ensure(result_ != nullptr);
+    expected_ = fromWKT("CIRCULARSTRING (1 0, 1.4 0.8, -1 0)");
+    ensure_geometry_equals_exact(result_, expected_, 1e-12);
+
+    double dev = arcImageDeviation(input_, shear);
+    ensure_equals("shear deviation", dev, 1.678252747742099, 1e-3);
+}
+
+// A rotation is a similarity, so the pointwise arc is the image of the arc.
+template <>
+template <>
+void object::test<17>()
+{
+    input_ = fromWKT("CIRCULARSTRING (1 0, 0.6 0.8, -1 0)");
+    result_ = GEOSGeom_transformXY(input_, rot90, nullptr);
+
+    ensure(result_ != nullptr);
+    expected_ = fromWKT("CIRCULARSTRING (0 1, -0.8 0.6, 0 -1)");
+    ensure_geometry_equals_exact(result_, expected_, 1e-12);
+
+    double dev = arcImageDeviation(input_, rot90);
+    ensure_equals("rotation deviation", dev, 0.0, 1e-8);
+}
+
+template <>
+template <>
+void object::test<18>()
+{
+    input_ = fromWKT("COMPOUNDCURVE (CIRCULARSTRING (1 0, 0.6 0.8, -1 0), (-1 0, -1 -1))");
+    result_ = GEOSGeom_transformXY(input_, scale21, nullptr);
+
+    ensure(result_ != nullptr);
+    ensure_equals(GEOSGeomTypeId(result_), GEOS_COMPOUNDCURVE);
+    expected_ = fromWKT("COMPOUNDCURVE (CIRCULARSTRING (2 0, 1.2 0.8, -2 0), (-2 0, -2 -1))");
+    ensure_geometry_equals_exact(result_, expected_, 1e-12);
+
+    double dev = arcImageDeviation(input_, scale21);
+    ensure_equals("compound curve deviation", dev, 0.1323807579381204, 1e-4);
+}
+
+template <>
+template <>
+void object::test<19>()
+{
+    input_ = fromWKT("CURVEPOLYGON (COMPOUNDCURVE (CIRCULARSTRING (1 0, 0.6 0.8, -1 0), (-1 0, 1 0)))");
+    result_ = GEOSGeom_transformXY(input_, scale21, nullptr);
+
+    ensure(result_ != nullptr);
+    ensure_equals(GEOSGeomTypeId(result_), GEOS_CURVEPOLYGON);
+    expected_ = fromWKT("CURVEPOLYGON (COMPOUNDCURVE (CIRCULARSTRING (2 0, 1.2 0.8, -2 0), (-2 0, 2 0)))");
+    ensure_geometry_equals_exact(result_, expected_, 1e-12);
+
+    double dev = arcImageDeviation(input_, scale21);
+    ensure_equals("curve polygon deviation", dev, 0.1323807579381204, 1e-4);
 }
 
 }  // namespace tut

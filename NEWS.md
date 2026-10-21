@@ -6,6 +6,11 @@
     GEOSSymmetricHausdorffDistance (Martin Davis, Jeroen Bloemscheer, Dan Baston)
 
 - Fixes/Improvements:
+  - GEOSGeom_transformXY and GEOSGeom_transformXYZ transform circular arcs
+    pointwise. The arc through the transformed control points is the image
+    of the input arc only for a similarity. Drop a CircularString's cached
+    arc when its coordinates change so the stroke follows the new control
+    points (Jeroen Bloemscheer)
   - Curve overlay robustness improvements (GH-1513, Dan Baston)
   - GeometrySplitter: Allow splitting a MultiSurface (GH-1520, Dan Baston)
   - GEOSGridIntersectionFractions: Set cells outside geometry bounding box to zero (GH-1532, Dan Baston)

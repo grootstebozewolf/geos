@@ -301,6 +301,7 @@ void object::test<13>() {
     GEOSGeom_destroy(out);
 }
 
+// Pointwise: a non-uniform scale moves the control points and keeps the type.
 template <>
 template <>
 void object::test<14>() {
@@ -328,6 +329,31 @@ void object::test<15>() {
 
     GEOSGeom_destroy(geom);
     GEOSGeom_destroy(out);
+}
+
+static int
+scale21_keepz(double* x, double* y, double* z, void* userdata)
+{
+    (void) y;
+    (void) z;
+    (void) userdata;
+    *x *= 2;
+    return 1;
+}
+
+// Same semicircle as the transformXY case. Z stays on the control points.
+// The XY gap from the half-ellipse is the transformXY deviation.
+template <>
+template <>
+void object::test<16>()
+{
+    input_ = fromWKT("CIRCULARSTRING Z (1 0 4, 0.6 0.8 5, -1 0 6)");
+    result_ = GEOSGeom_transformXYZ(input_, scale21_keepz, nullptr);
+
+    ensure(result_ != nullptr);
+    expected_ = fromWKT("CIRCULARSTRING Z (2 0 4, 1.2 0.8 5, -2 0 6)");
+    ensure_geometry_equals_exact(result_, expected_, 1e-12);
+    ensure_equals(GEOSHasZ(result_), 1);
 }
 
 }  // namespace tut
