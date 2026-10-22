@@ -10,6 +10,7 @@
 #include <geos/geom/PrecisionModel.h>
 #include <geos/geom/GeometryFactory.h>
 #include <geos/geom/Geometry.h>
+#include <geos/geom/CircularString.h>
 #include <geos/geom/LineString.h>
 #include <geos/geom/Polygon.h>
 #include <geos/geom/Point.h>
@@ -501,6 +502,45 @@ void object::test<26>
     wkt += "POINT(0 0)";
     for (int i = 0; i < 200; i++) wkt += ")";
     ensure_parseexception(wkt);
+}
+
+// CIRCLE is a display-view keyword (ANTLR grammars-v4:
+// circleGeometry : CIRCLE dim? lineStringText). Realises as CircularString.
+template<>
+template<>
+void object::test<27>
+()
+{
+    set_test_name("CIRCLE view reads as CircularString egg");
+    geos::io::WKTReader floatingReader;
+    auto geom = floatingReader.read<geos::geom::CircularString>("CIRCLE (0 1, 1 0, 0 -1)");
+    ensure_equals(geom->getGeometryTypeId(), geos::geom::GEOS_CIRCULARSTRING);
+    ensure_equals(geom->getNumPoints(), static_cast<std::size_t>(3));
+    ensure_equals(geom->getCoordinateN(0).x, 0.0);
+    ensure_equals(geom->getCoordinateN(0).y, 1.0);
+    ensure_equals(geom->getCoordinateN(1).x, 1.0);
+    ensure_equals(geom->getCoordinateN(1).y, 0.0);
+    ensure_equals(geom->getCoordinateN(2).x, 0.0);
+    ensure_equals(geom->getCoordinateN(2).y, -1.0);
+}
+
+template<>
+template<>
+void object::test<28>
+()
+{
+    set_test_name("CIRCLE view rejects collinear and wrong cardinality");
+    geos::io::WKTReader floatingReader;
+    auto reject = [&](const std::string& wkt) {
+        try {
+            auto geom = floatingReader.read(wkt);
+            fail();
+        } catch (const geos::io::ParseException&) {}
+    };
+    reject("CIRCLE (0 0, 1 0, 2 0)");
+    reject("CIRCLE (0 1, 1 0)");
+    reject("CIRCLE EMPTY");
+    reject("CIRCLE (0 1, 1 0, 0 -1, -1 0, 0 1)");
 }
 
 } // namespace tut

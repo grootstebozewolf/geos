@@ -21,6 +21,7 @@
 #include <geos/io/StringTokenizer.h>
 #include <geos/io/ParseException.h>
 #include <geos/io/CLocalizer.h>
+#include <geos/algorithm/exactcurve/ExactCircularArc.h>
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/CircularString.h>
 #include <geos/geom/CompoundCurve.h>
@@ -335,6 +336,12 @@ WKTReader::readGeometryTaggedText(StringTokenizer* tokenizer, OrdinateSet& ordin
     else if(isTypeName(type, "CIRCULARSTRING")) {
         geom = readCircularStringText(tokenizer, newFlags);
     }
+    else if(isTypeName(type, "CIRCLE")) {
+        // Display view only: CIRCLE (A,B,C) → CircularString egg.
+        // ANTLR grammars-v4: circleGeometry : CIRCLE dim? lineStringText
+        // SQL/MM type 18 messaging stays CIRCULARSTRING.
+        geom = readCircleText(tokenizer, newFlags);
+    }
     else if(isTypeName(type, "COMPOUNDCURVE")) {
         geom = readCompoundCurveText(tokenizer, newFlags);
     }
@@ -413,6 +420,25 @@ std::unique_ptr<CircularString>
 WKTReader::readCircularStringText(StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const
 {
     auto&& coords = getCoordinates(tokenizer, ordinateFlags);
+    return geometryFactory->createCircularString(std::move(coords));
+}
+
+std::unique_ptr<CircularString>
+WKTReader::readCircleText(StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const
+{
+    auto&& coords = getCoordinates(tokenizer, ordinateFlags);
+    if (coords->size() != 3) {
+        throw ParseException(
+            "CIRCLE view requires three non-collinear circumference points");
+    }
+    const CoordinateXY a = coords->getAt<CoordinateXY>(0);
+    const CoordinateXY b = coords->getAt<CoordinateXY>(1);
+    const CoordinateXY c = coords->getAt<CoordinateXY>(2);
+    double cx, cy, r;
+    if (!geos::algorithm::exactcurve::ExactCircularArc::tryCircumcircle(a, b, c, cx, cy, r)) {
+        throw ParseException(
+            "CIRCLE view requires three non-collinear circumference points");
+    }
     return geometryFactory->createCircularString(std::move(coords));
 }
 
