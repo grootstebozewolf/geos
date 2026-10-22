@@ -23,6 +23,11 @@
 namespace geos {
 namespace io {
 
+/// Largest difference between a short-form CLOTHOID k0 and the previous
+/// member's end curvature. It covers the ProRail arc-radius rounding and
+/// rejects k0 = 0.02 after a line.
+constexpr double CLOTHOID_START_CURVATURE_TOLERANCE = 1e-7;
+
 /// Heading and curvature at the end of a simple curve. Positive curvature is CCW.
 inline bool
 curveEndState(const geom::SimpleCurve& curve, double& heading, double& curvature)
@@ -131,8 +136,7 @@ clothoidContinues(const geom::SimpleCurve& previous, const geom::Clothoid& cloth
     if (!(std::abs(turn) <= 1e-8)) {
         return false;
     }
-    const double scale = std::max(1.0, std::max(std::abs(curvature), std::abs(clothoid.getStartCurvature())));
-    return std::abs(clothoid.getStartCurvature() - curvature) <= 1e-6 * scale;
+    return std::abs(clothoid.getStartCurvature() - curvature) <= CLOTHOID_START_CURVATURE_TOLERANCE;
 }
 
 }

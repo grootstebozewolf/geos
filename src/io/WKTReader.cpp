@@ -452,10 +452,7 @@ WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFla
         }
         // #4847 §3.2: κ₀ is the previous member's end curvature. §3.4 checks
         // κ₁ against the next arc and is warn-only, so that mismatch is kept.
-        // 1e-7 covers the ProRail arc-radius rounding and rejects κ₀ = 0.02
-        // after a line.
-        constexpr double START_CURVATURE_TOLERANCE = 1e-7;
-        if (std::isfinite(k0) && !(std::abs(k0 - inherited) <= START_CURVATURE_TOLERANCE)) {
+        if (std::isfinite(k0) && !(std::abs(k0 - inherited) <= CLOTHOID_START_CURVATURE_TOLERANCE)) {
             throw ParseException("CLOTHOID start curvature does not match the previous member");
         }
 

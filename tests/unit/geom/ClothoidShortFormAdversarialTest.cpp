@@ -15,7 +15,9 @@
 #include <cmath>
 #include <iomanip>
 #include <sstream>
+#include <memory>
 #include <string>
+#include <vector>
 
 using geos::algorithm::CurveToLineParams;
 using geos::geom::Clothoid;
@@ -228,6 +230,36 @@ void object::test<11>()
 
     ensure_THROW(reader_.read("COMPOUNDCURVE ((0 0, 1 0), CLOTHOID Z (0, 0.01, 5))"),
         geos::io::ParseException);
+}
+
+template<>
+template<>
+void object::test<12>()
+{
+    set_test_name("start curvature off the previous member by 5e-7");
+
+    geos::io::WKTWriter writer;
+    for (double k0 : {5e-7, 5e-8}) {
+        auto lineCoords = std::make_unique<geos::geom::CoordinateSequence>(static_cast<std::size_t>(2), false, false);
+        lineCoords->setAt(CoordinateXY(-5.0, 0.0), 0);
+        lineCoords->setAt(CoordinateXY(0.0, 0.0), 1);
+        std::vector<std::unique_ptr<SimpleCurve>> parts;
+        parts.push_back(factory_->createLineString(std::move(lineCoords)));
+        parts.push_back(factory_->createClothoid(
+            CoordinateXYZM(0.0, 0.0, geos::DoubleNotANumber, geos::DoubleNotANumber),
+            false, false, 0.0, k0, 0.01, 6.0));
+        auto curve = factory_->createCompoundCurve(std::move(parts));
+
+        const std::string text = writer.write(curve.get());
+        const bool shortForm = text.find("REFERENCELOCATION") == std::string::npos;
+        ensure_equals(text, shortForm, k0 < 1e-7);
+        if (shortForm) {
+            auto back = reader_.read<CompoundCurve>(text);
+            const auto* clothoid = dynamic_cast<const Clothoid*>(back->getCurveN(1));
+            ensure(clothoid != nullptr);
+            ensure_equals("start curvature", clothoid->getStartCurvature(), k0, 1e-12);
+        }
+    }
 }
 
 } // namespace tut
