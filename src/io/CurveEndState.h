@@ -89,7 +89,10 @@ clothoidContinues(const geom::SimpleCurve& previous, const geom::Clothoid& cloth
     if (clothoid.isEmpty() || previous.isEmpty() || !(clothoid.getScaleFactor() > 0.0)) {
         return false;
     }
-    if (clothoid.getStartCoordinate().distance(previous.getEndCoordinate()) > 1e-8) {
+    // A reversed short-form member keeps its analytical start off the typed
+    // end. Written short again, the typed end wins (#4847 §3.3).
+    const bool gapAtStart = clothoid.gapAllowedAtStart();
+    if (!gapAtStart && clothoid.getStartCoordinate().distance(previous.getEndCoordinate()) > 1e-8) {
         return false;
     }
     const geom::CoordinateSequence* clothoidSeq = clothoid.getCoordinatesRO();
@@ -133,7 +136,7 @@ clothoidContinues(const geom::SimpleCurve& previous, const geom::Clothoid& cloth
         return false;
     }
     const double turn = std::remainder(clothoid.getStartHeading() - heading, 2.0 * MATH_PI);
-    if (!(std::abs(turn) <= 1e-8)) {
+    if (!gapAtStart && !(std::abs(turn) <= 1e-8)) {
         return false;
     }
     return std::abs(clothoid.getStartCurvature() - curvature) <= CLOTHOID_START_CURVATURE_TOLERANCE;

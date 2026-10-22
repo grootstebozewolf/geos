@@ -262,4 +262,32 @@ void object::test<12>()
     }
 }
 
+template<>
+template<>
+void object::test<13>()
+{
+    set_test_name("reversed ProRail 823_12V_4.3 is written short");
+
+    auto curve = reader_.read<CompoundCurve>(
+        "COMPOUNDCURVE ("
+        "(116414.353 411964.758, 116410.740 411976.388), "
+        "CLOTHOID (0, 0.005, 48), "
+        "CIRCULARSTRING (116394.687 412021.591, 116284.527 412126.266, 116132.940 412123.450), "
+        "CLOTHOID (0.005, 0, 42), "
+        "(116095.653 412104.165, 115842.170 411961.603))");
+    auto reversed = curve->reverse();
+
+    geos::io::WKTWriter writer;
+    const std::string text = writer.write(reversed.get());
+    ensure(text, text.find("CLOTHOID (0, -0.005, 42)") != std::string::npos);
+    ensure(text, text.find("CLOTHOID (-0.005, 0, 48)") != std::string::npos);
+
+    auto back = reader_.read<CompoundCurve>(text);
+    ensure_equals("members", back->getNumCurves(), 5u);
+    ensure_equals("start", back->getCurveN(1)->getStartCoordinate().x,
+        reversed->getCurveN(0)->getEndCoordinate().x, 0.0);
+    ensure_equals("drift", back->getCurveN(1)->getEndCoordinate().distance(
+        reversed->getCurveN(1)->getEndCoordinate()), 0.0, 1e-3);
+}
+
 } // namespace tut
