@@ -254,7 +254,9 @@ private:
     template <typename T>
     T sym(const char* name) {
 #ifdef _WIN32
-        return reinterpret_cast<T>(GetProcAddress(static_cast<HMODULE>(handle_), name));
+        // Go through void(*)() so GCC's -Wcast-function-type accepts FARPROC.
+        return reinterpret_cast<T>(reinterpret_cast<void (*)()>(
+            GetProcAddress(static_cast<HMODULE>(handle_), name)));
 #else
         return reinterpret_cast<T>(dlsym(handle_, name));
 #endif
