@@ -337,7 +337,6 @@ WKTReader::readGeometryTaggedText(StringTokenizer* tokenizer, OrdinateSet& ordin
         geom = readCircularStringText(tokenizer, newFlags);
     }
     else if(isTypeName(type, "CLOTHOID")) {
-        // ISO/IEC 13249-3:2016 §5.1.67 <clothoid text representation>.
         geom = readClothoidText(tokenizer, newFlags);
     }
     else if(isTypeName(type, "COMPOUNDCURVE")) {
@@ -372,8 +371,8 @@ WKTReader::readGeometryTaggedText(StringTokenizer* tokenizer, OrdinateSet& ordin
             || isTypeName(type, "GEODESICSTRING")
             || isTypeName(type, "NURBSCURVE")
             || isTypeName(type, "SPIRALCURVE")) {
-        // Named refuse. CLOTHOID is the ISO type (§4.2.11, §5.1.67).
-        // SPIRALCURVE (§4.2.12, §7.9, WKB 23) stays unimplemented.
+        // Instantiable ST_Curve subtypes in ISO/IEC 13249-3 §4.2.1.
+        // Not optional extras. Named refuse until a carrier exists.
         throw ParseException(
             "SQL/MM type is not optional (ISO/IEC 13249-3 §4.2.1) and is not implemented",
             type);
@@ -423,17 +422,13 @@ WKTReader::readCircularStringText(StringTokenizer* tokenizer, OrdinateSet& ordin
 std::unique_ptr<Clothoid>
 WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFlags) const
 {
-    // ISO/IEC 13249-3:2016 §5.1.67 <clothoid text>.
     std::string nextToken = getNextEmptyOrOpener(tokenizer, ordinateFlags);
     if (nextToken == "EMPTY") {
         return geometryFactory->createClothoid(ordinateFlags.hasZ(), ordinateFlags.hasM());
     }
 
     if (isNumberNext(tokenizer)) {
-        throw ParseException(
-            "CLOTHOID WKT must follow ISO/IEC 13249-3:2016 §5.1.67 "
-            "(REFERENCELOCATION AFFINEPLACEMENT, SCALEFACTOR, STARTDISTANCE, ENDDISTANCE). "
-            "The arc-length body CLOTHOID (x y, theta0, k0, k1, length) is not accepted");
+        throw ParseException("CLOTHOID WKT requires REFERENCELOCATION");
     }
 
     const bool hasZ = ordinateFlags.hasZ();
@@ -462,17 +457,15 @@ WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFla
     word = getNextWord(tokenizer);
     const bool placementZ = takeZFlag(word);
     if (word == "EMPTY") {
-        throw ParseException(
-            "CLOTHOID reference location must not be EMPTY (ISO/IEC 13249-3:2016 §4.2.11)");
+        throw ParseException("CLOTHOID reference location must not be EMPTY");
     }
     if (word != "(") {
         throw ParseException("Expected '(' after AFFINEPLACEMENT but encountered", word);
     }
     if (placementZ != hasZ) {
-        throw ParseException(
-            hasZ
-            ? "CLOTHOID Z requires AFFINEPLACEMENT Z (ISO/IEC 13249-3:2016 §7.8.1)"
-            : "CLOTHOID without Z must not use AFFINEPLACEMENT Z (ISO/IEC 13249-3:2016 §7.8.1)");
+        throw ParseException(hasZ
+            ? "CLOTHOID Z requires AFFINEPLACEMENT Z"
+            : "CLOTHOID without Z must not use AFFINEPLACEMENT Z");
     }
 
     auto readComponents = [&](const char* keyword, double& x, double& y, double& z, bool snap) {
@@ -483,10 +476,9 @@ WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFla
         word = getNextWord(tokenizer);
         const bool componentZ = takeZFlag(word);
         if (componentZ != hasZ) {
-            throw ParseException(
-                std::string(keyword) + (hasZ
-                    ? " must be Z when CLOTHOID is Z (ISO/IEC 13249-3:2016 §5.1.67, §17.2.22)"
-                    : " must not be Z when CLOTHOID is not Z (ISO/IEC 13249-3:2016 §5.1.67, §17.2.22)"));
+            throw ParseException(std::string(keyword) + (hasZ
+                ? " must be Z when CLOTHOID is Z"
+                : " must not be Z when CLOTHOID is not Z"));
         }
         if (word != "(") {
             throw ParseException(std::string("Expected '(' after ") + keyword + " but encountered", word);
@@ -508,13 +500,13 @@ WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFla
     };
 
     ClothoidReferenceLocation location;
-    readComponents("LOCATION", location.x, location.y, location.z, true);
+    readComponents("LOCATION", location.origin.x, location.origin.y, location.origin.z, true);
     expect(",");
     expect("REFERENCEDIRECTIONS");
     expect("(");
-    readComponents("VECTOR", location.ux, location.uy, location.uz, false);
+    readComponents("VECTOR", location.u.x, location.u.y, location.u.z, false);
     expect(",");
-    readComponents("VECTOR", location.vx, location.vy, location.vz, false);
+    readComponents("VECTOR", location.v.x, location.v.y, location.v.z, false);
     expect(")");
     expect(")");
 
@@ -533,8 +525,7 @@ WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFla
     word = getNextWord(tokenizer);
     if (word == ",") {
         if (!hasM) {
-            throw ParseException(
-                "CLOTHOID STARTM/ENDM require the M or ZM type flag (ISO/IEC 13249-3:2016 §5.1.67)");
+            throw ParseException("CLOTHOID STARTM/ENDM require the M or ZM type flag");
         }
         expect("STARTM");
         startM = getNextNumber(tokenizer);
@@ -545,8 +536,7 @@ WKTReader::readClothoidText(StringTokenizer* tokenizer, OrdinateSet& ordinateFla
     }
     else if (word == ")") {
         if (hasM) {
-            throw ParseException(
-                "CLOTHOID M or ZM requires STARTM and ENDM (ISO/IEC 13249-3:2016 §5.1.67)");
+            throw ParseException("CLOTHOID M or ZM requires STARTM and ENDM");
         }
     }
     else {

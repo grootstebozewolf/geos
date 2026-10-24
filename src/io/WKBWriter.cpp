@@ -185,28 +185,11 @@ WKBWriter::writeDouble(double value)
 void
 WKBWriter::writeClothoid(const Clothoid& g)
 {
-    // ISO/IEC 13249-3:2016 §5.1.68 Table 15. The type word is always the ISO
-    // code 22 / 1022 / 2022 / 3022, including when the writer flavor is
-    // extended. EWKB's high Z/M bits are not used: 18 is ST_Circle.
-    // An optional SRID flag (0x20000000) is a GEOS extension, written only
-    // for the extended flavor. ISO itself has no SRID in this body.
     writeByteOrder();
-
-    int typeId = WKBConstants::wkbClothoid;
-    if (outputOrdinates.hasZ()) {
-        typeId += 1000;
-    }
-    if (outputOrdinates.hasM()) {
-        typeId += 2000;
-    }
-    if (includeSRID && g.getSRID() != 0 && flavor == WKBConstants::wkbExtended) {
-        typeId |= 0x20000000;
-    }
-    writeInt(typeId);
+    writeGeometryType(WKBConstants::wkbClothoid, g.getSRID());
     writeSRID(g.getSRID());
 
-    // Empty omits the reference-location body (§5.1.68 bd–bg). It is not a
-    // NaN ordinate.
+    // Empty omits the reference-location body.
     if (g.isEmpty()) {
         return;
     }
@@ -214,29 +197,28 @@ WKBWriter::writeClothoid(const Clothoid& g)
     const ClothoidReferenceLocation loc = g.getReferenceLocation();
     const bool hasZ = outputOrdinates.hasZ();
 
-    // Nested affine placement: its own byte order, type 102 or 1102, no SRID.
-    // Location and vectors are raw doubles, not a POINT WKB (§5.1.68).
+    // Nested affine placement: own byte order, type 102 or 1102, raw doubles.
     writeByteOrder();
     int placementType = WKBConstants::wkbAffinePlacement;
     if (hasZ) {
         placementType += 1000;
     }
     writeInt(placementType);
-    writeDouble(loc.x);
-    writeDouble(loc.y);
+    writeDouble(loc.origin.x);
+    writeDouble(loc.origin.y);
     if (hasZ) {
-        writeDouble(loc.z);
+        writeDouble(loc.origin.z);
     }
     writeInt(2);
-    writeDouble(loc.ux);
-    writeDouble(loc.uy);
+    writeDouble(loc.u.x);
+    writeDouble(loc.u.y);
     if (hasZ) {
-        writeDouble(loc.uz);
+        writeDouble(loc.u.z);
     }
-    writeDouble(loc.vx);
-    writeDouble(loc.vy);
+    writeDouble(loc.v.x);
+    writeDouble(loc.v.y);
     if (hasZ) {
-        writeDouble(loc.vz);
+        writeDouble(loc.v.z);
     }
 
     writeDouble(g.getScaleFactor());

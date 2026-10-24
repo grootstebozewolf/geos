@@ -102,7 +102,7 @@ GeometryTransformer::transform(const Geometry* nInputGeom)
             return transformCircularString(detail::down_cast<const CircularString*>(inputGeom), nullptr);
         case GEOS_CLOTHOID:
             throw geos::util::UnsupportedOperationException(
-                "Clothoid coordinate transform is not implemented. Call getLinearized first.");
+                "Clothoid coordinate transform is not implemented");
         case GEOS_COMPOUNDCURVE:
             return transformCompoundCurve(detail::down_cast<const CompoundCurve*>(inputGeom), nullptr);
         case GEOS_CURVEPOLYGON:
@@ -277,7 +277,7 @@ GeometryTransformer::transformCompoundCurve(
         }
         else if(c->getGeometryTypeId() == GEOS_CLOTHOID) {
             throw geos::util::UnsupportedOperationException(
-                "Clothoid coordinate transform is not implemented. Call getLinearized first.");
+                "Clothoid coordinate transform is not implemented");
         }
         else if(const LineString* ls = dynamic_cast<const LineString*>(c)) {
             transformGeom = transformLineString(ls, geom);

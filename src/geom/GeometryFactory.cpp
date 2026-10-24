@@ -20,7 +20,7 @@
 
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/CoordinateSequence.h>
-#include <geos/algorithm/Clothoid.h>
+#include <algorithm/ClothoidMath.h>
 #include <geos/geom/CircularString.h>
 #include <geos/geom/Clothoid.h>
 #include <geos/geom/CurvePolygon.h>
@@ -751,85 +751,63 @@ std::unique_ptr<Clothoid>
 GeometryFactory::createClothoid(
     const CoordinateXYZM& start,
     bool hasZ, bool hasM,
-    double theta0, double k0, double k1, double length) const
+    double theta0, double k0, double k1, double length,
+    double endM) const
 {
     if (!std::isfinite(start.x) || !std::isfinite(start.y) || !std::isfinite(theta0)
             || !std::isfinite(k0) || !std::isfinite(k1) || !std::isfinite(length)
             || !(length > 0.0)
             || (hasZ && !std::isfinite(start.z))
-            || (hasM && !std::isfinite(start.m))) {
+            || (hasM && (!std::isfinite(start.m) || !std::isfinite(endM)))) {
         throw geos::util::IllegalArgumentException(
             "Clothoid pose, curvatures, and length must be finite and length must be positive");
     }
     const double rate = (k1 - k0) / length;
     if (!(rate != 0.0) || !std::isfinite(rate)) {
         throw geos::util::IllegalArgumentException(
-            "ISO/IEC 13249-3:2016 §4.2.11 ST_Clothoid has curvature proportional to distance from a finite inflection (finite scale factor). Constant curvature is not an ST_Clothoid");
+            "Constant curvature is not a clothoid");
     }
 
-    // The constructive clothoid has dκ/dt = +1/A², so a proper rotation can
-    // only increase curvature along the arc. k1 < k0 is that curve reflected
-    // (det(u, v) = -1), with distances still running forward (t1 > t0).
-    // Travel heading is α+θ for a rotation and α−θ for a reflection.
-    // Adding π would flip the tangent while t still increases.
+    // Curvature increases along the constructive curve. Decreasing curvature
+    // is that curve reflected, with distances still running forward.
     const bool reflected = rate < 0.0;
     const double direction = reflected ? -1.0 : 1.0;
     const double a2 = 1.0 / std::abs(rate);
     const double scale = std::sqrt(a2);
+    if (!std::isfinite(scale)
+            || !(scale >= algorithm::clothoid::MIN_ABS_SCALE)
+            || !(scale <= algorithm::clothoid::MAX_ABS_SCALE)) {
+        throw geos::util::IllegalArgumentException(
+            "Clothoid scale factor must be finite and non-zero");
+    }
     const double t0 = k0 * a2 * direction;
     const double t1 = k1 * a2 * direction;
 
-    algorithm::clothoid::Parameters local;
-    local.x0 = 0.0;
-    local.y0 = 0.0;
-    local.theta0 = 0.0;
-    local.k0 = 0.0;
-    local.k1 = std::abs(t0) / a2;
-    local.length = std::abs(t0);
-    double xC = 0.0;
-    double yC = 0.0;
-    if (local.length > 0.0) {
-        algorithm::clothoid::position(local, local.length, xC, yC);
-        if (t0 < 0.0) {
-            xC = -xC;
-            yC = -yC;
-        }
-    }
-    const double headingDt = (t0 * t0) / (2.0 * a2);
-    const double alpha = reflected ? (theta0 + headingDt) : (theta0 - headingDt);
+    const CoordinateXY offset = algorithm::clothoid::constructiveOffset(t0, scale);
+    // alpha = theta0 -/+ the constructive heading at t0, which can be large.
+    double cosDt = 0.0;
+    double sinDt = 0.0;
+    algorithm::clothoid::halfSquarePhase(t0, scale, cosDt, sinDt);
+    const double cos0 = std::cos(theta0);
+    const double sin0 = std::sin(theta0);
+    // cos and sin of the one reduced angle keep the direction unit length to
+    // an ulp, which the similarity length scale * |t1 - t0| relies on.
+    const double alpha = std::atan2(sin0 * cosDt + (reflected ? cos0 * sinDt : -cos0 * sinDt),
+                                    cos0 * cosDt + (reflected ? -sin0 * sinDt : sin0 * sinDt));
     const double c = std::cos(alpha);
     const double s = std::sin(alpha);
 
     ClothoidReferenceLocation location;
-    location.ux = c;
-    location.uy = s;
-    location.uz = 0.0;
-    location.vx = reflected ? s : -s;
-    location.vy = reflected ? -c : c;
-    location.vz = 0.0;
-    location.x = start.x - xC * location.ux - yC * location.vx;
-    location.y = start.y - xC * location.uy - yC * location.vy;
-    location.z = hasZ ? start.z : 0.0;
+    location.u = Coordinate(c, s, 0.0);
+    location.v = Coordinate(reflected ? s : -s, reflected ? -c : c, 0.0);
+    location.origin = Coordinate(
+                          start.x - offset.x * location.u.x - offset.y * location.v.x,
+                          start.y - offset.x * location.u.y - offset.y * location.v.y,
+                          hasZ ? start.z : 0.0);
 
-    const double measure = hasM ? start.m : 0.0;
-    return createClothoid(location, scale, t0, t1, hasZ, hasM, measure, measure);
-}
-
-std::unique_ptr<Clothoid>
-GeometryFactory::createClothoidFromChord(
-    const CoordinateXY& start,
-    const CoordinateXY& end,
-    double k0, double k1) const
-{
-    const algorithm::clothoid::ChordPlacement placed = algorithm::clothoid::placeOnChord(
-        start.x, start.y, end.x, end.y, k0, k1);
-    if (!placed.solve.converged) {
-        throw geos::util::IllegalArgumentException(
-            "Halley length solve did not meet the residual tolerance for this chord and curvature pair");
-    }
-    CoordinateXYZM origin(start.x, start.y, DoubleNotANumber, DoubleNotANumber);
-    return createClothoid(origin, false, false,
-        placed.parameters.theta0, k0, k1, placed.solve.length);
+    const double startM = hasM ? start.m : 0.0;
+    const double storedEndM = hasM ? endM : 0.0;
+    return createClothoid(location, scale, t0, t1, hasZ, hasM, startM, storedEndM);
 }
 
 /*public*/

@@ -28,6 +28,7 @@
 #include <geos/geom/PrecisionModel.h>
 #include <geos/geom/Polygon.h>
 #include <geos/util/IllegalArgumentException.h>
+#include <geos/constants.h>
 #include <geos/export.h>
 
 #include <vector>
@@ -360,19 +361,10 @@ public:
     std::unique_ptr<CircularString> createCircularString(
         const CoordinateSequence& coordinates) const;
 
-    /// Construct an EMPTY ST_Clothoid. See geom::Clothoid.
+    /// Construct an empty clothoid
     std::unique_ptr<Clothoid> createClothoid(bool hasZ, bool hasM) const;
 
-    /**
-     * Construct an ST_Clothoid from ISO/IEC 13249-3:2016 §7.8 attributes.
-     *
-     * reference directions are the images of the constructive axes (§4.9.3).
-     * scaleFactor is the Fresnel constant A (A*A = R*t). startDistance and
-     * endDistance are arc lengths from the inflection. When hasM is set,
-     * startM and endM are the measure pair; they are not ordinates of the
-     * location. A negative scaleFactor is stored and evaluated as |A|
-     * (§7.8.4 states no sign rule).
-     */
+    /// Construct a clothoid from an affine placement and constructive distances
     std::unique_ptr<Clothoid> createClothoid(
         const ClothoidReferenceLocation& referenceLocation,
         double scaleFactor,
@@ -381,32 +373,13 @@ public:
         bool hasZ, bool hasM,
         double startM, double endM) const;
 
-    /**
-     * Construct an ST_Clothoid from an arc-length pose and convert it to
-     * ISO parameters (§4.2.11).
-     *
-     * theta0 is radians from +X. k0 and k1 are endpoint curvatures and
-     * length is the arc length. This is not a CLOTHOID WKT or WKB body.
-     * k1 < k0 is stored as a reflected placement (curvature falls along the
-     * arc). Constant curvature has no finite scale factor and is rejected.
-     * Z, when hasZ is set, is constant (reference directions have zero Z).
-     * M, when hasM is set, is a constant STARTM/ENDM pair taken from start.
-     */
+    /// Construct a clothoid from an arc-length pose. Constant curvature is rejected.
+    /// When hasM is set, endM is stored separately from start.m.
     std::unique_ptr<Clothoid> createClothoid(
         const CoordinateXYZM& start,
         bool hasZ, bool hasM,
-        double theta0, double k0, double k1, double length) const;
-
-    /**
-     * Solve the chord length with Halley's method and rotate the local frame
-     * onto the chord. Throws if the residual test does not pass.
-     * A successful return means that test passed for this call, not that the
-     * positive root is unique.
-     */
-    std::unique_ptr<Clothoid> createClothoidFromChord(
-        const CoordinateXY& start,
-        const CoordinateXY& end,
-        double k0, double k1) const;
+        double theta0, double k0, double k1, double length,
+        double endM = DoubleNotANumber) const;
 
     /// Construct an EMPTY CompoundCurve
     std::unique_ptr<CompoundCurve> createCompoundCurve() const;

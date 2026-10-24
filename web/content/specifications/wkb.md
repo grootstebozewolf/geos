@@ -214,13 +214,6 @@ WKBMultiSurface {
     WKBSurface   surfaces[numSurfaces];
 }
 
-// ISO/IEC 13249-3:2016 §5.1.68 Table 15. ST_Clothoid is 22.
-// Z / M / ZM are 1022 / 2022 / 3022. 18 is ST_Circle, not a clothoid.
-// EWKB high Z/M bits are not used for this type. Empty is the type word
-// with the reference-location body omitted (§5.1.68 bd–bg), not a NaN point.
-// The nested affine placement is type 102, or 1102 when the clothoid is Z
-// or ZM (§4.9.3, §7.8.1). Its location and vectors are raw doubles.
-// Measures, when present, are STARTM and ENDM, not an ordinate of the location.
 WKBClothoid {
     byte                byteOrder;
     uint32              wkbType; // 22, 1022, 2022, or 3022

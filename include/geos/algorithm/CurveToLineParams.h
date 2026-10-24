@@ -59,12 +59,10 @@ public:
           .setMaxDeviation(DoubleInfinity);
     }
 
-    /// Heading-step limit in degrees. Clothoid linearization reads this directly.
     double getMaxStepDegrees() const {
         return m_maxStepDegrees;
     }
 
-    /// Chord-deviation limit. Infinite means the step limit is the active constraint.
     double getMaxDeviation() const {
         return m_maxDeviation;
     }

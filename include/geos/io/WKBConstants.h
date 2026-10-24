@@ -43,17 +43,9 @@ namespace WKBConstants {
         wkbCurvePolygon = 10,
         wkbMultiCurve = 11,
         wkbMultiSurface = 12,
-        // ISO/IEC 13249-3:2016 §5.1.68 Table 15. ST_Circle is not implemented.
-        // 18 is not a clothoid; ST_Clothoid is 22.
         wkbCircle = 18,
-        // ISO/IEC 13249-3:2016 §5.1.68 Table 15 <wkbclothoid>.
-        // Z / M / ZM are 1022 / 2022 / 3022. The body is an affine placement
-        // (§5.1.68 <wkbreferencelocation>), scale factor, and start/end distance.
-        // Empty is the type word with that body omitted (§5.1.68 bg).
         wkbClothoid = 22,
-        // ISO/IEC 13249-3:2016 §5.1.68 Table 15. ST_SpiralCurve is not implemented.
         wkbSpiralCurve = 23,
-        // Support type embedded in clothoid WKB. Z form is 1102.
         wkbAffinePlacement = 102,
     };
 

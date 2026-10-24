@@ -97,9 +97,7 @@ enum GeometryTypeId : int {
     GEOS_CURVEPOLYGON,
     GEOS_MULTICURVE,
     GEOS_MULTISURFACE,
-    /// ST_Clothoid, ISO/IEC 13249-3:2016 §4.2.11 and §7.8.
-    /// The WKB type word is 22 (§5.1.68 Table 15). 18 is ST_Circle.
-    GEOS_CLOTHOID = 22,
+    GEOS_CLOTHOID,
 };
 
 enum GeometrySortIndex {

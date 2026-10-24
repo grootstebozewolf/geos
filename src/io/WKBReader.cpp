@@ -346,15 +346,6 @@ WKBReader::readGeometry()
     case WKBConstants::wkbCircularString :
         result = readCircularString();
         break;
-    case WKBConstants::wkbCircle :
-        // ISO/IEC 13249-3:2016 §5.1.68 Table 15. 18/1018/2018/3018 are
-        // ST_Circle. ST_Clothoid is 22/1022/2022/3022.
-        throw ParseException(
-            "WKB type 18 is ST_Circle (ISO/IEC 13249-3:2016 §5.1.68 Table 15) and is not implemented. ST_Clothoid is type 22");
-    case WKBConstants::wkbSpiralCurve :
-        // §4.2.12 and §7.9. Left unimplemented in this slice.
-        throw ParseException(
-            "SQL/MM type is not optional (ISO/IEC 13249-3 §4.2.1) and is not implemented");
     case WKBConstants::wkbClothoid :
         result = readClothoid();
         break;
@@ -478,12 +469,8 @@ isGeometryWkbType(uint32_t base)
 std::unique_ptr<Clothoid>
 WKBReader::readClothoid()
 {
-    // ISO/IEC 13249-3:2016 §5.1.68. After the clothoid type word (and an
-    // optional EWKB SRID, already consumed), empty is the omitted
-    // reference-location body. A following geometry also begins with a
-    // byte order and a type word, so an embedded empty clothoid is not
-    // delimited. Fewer than 5 bytes, or a known geometry header, is EMPTY
-    // and is not consumed. Type 102 / 1102 is the affine placement.
+    // Empty omits the reference-location body. A following geometry also
+    // starts with a byte order and a type word, so that header is not consumed.
     const int clothoidOrder = dis.getOrder();
     if (dis.size() < 5) {
         return factory.createClothoid(hasZ, hasM);
@@ -491,10 +478,7 @@ WKBReader::readClothoid()
 
     const unsigned char nextOrderByte = dis.peekByte(0);
     if (nextOrderByte != WKBConstants::wkbXDR && nextOrderByte != WKBConstants::wkbNDR) {
-        throw ParseException(
-            "CLOTHOID WKB must follow ISO/IEC 13249-3:2016 §5.1.68 "
-            "(affine placement, scale factor, start distance, end distance). "
-            "The arc-length body is not accepted");
+        throw ParseException("CLOTHOID WKB requires an affine placement");
     }
     const int nextOrder = (nextOrderByte == WKBConstants::wkbNDR)
         ? ByteOrderValues::ENDIAN_LITTLE
@@ -505,10 +489,7 @@ WKBReader::readClothoid()
         if (isGeometryWkbType(nextBase)) {
             return factory.createClothoid(hasZ, hasM);
         }
-        throw ParseException(
-            "CLOTHOID WKB must follow ISO/IEC 13249-3:2016 §5.1.68 "
-            "(affine placement, scale factor, start distance, end distance). "
-            "The arc-length body is not accepted");
+        throw ParseException("CLOTHOID WKB requires an affine placement");
     }
 
     dis.readByte();
@@ -520,35 +501,33 @@ WKBReader::readClothoid()
         || ((placementType & 0x40000000u) != 0);
     if ((placementType & 0x20000000u) != 0 || placementM || placementZ != hasZ || placementRange > 1u) {
         throw ParseException(
-            "CLOTHOID reference location must be affine placement type 102 or 1102 "
-            "(ISO/IEC 13249-3:2016 §5.1.68, §7.8.1)");
+            "CLOTHOID reference location must be affine placement type 102 or 1102");
     }
 
     const PrecisionModel& pm = *factory.getPrecisionModel();
     ClothoidReferenceLocation location;
-    location.x = pm.makePrecise(dis.readDouble());
-    location.y = pm.makePrecise(dis.readDouble());
-    location.z = 0.0;
+    location.origin.x = pm.makePrecise(dis.readDouble());
+    location.origin.y = pm.makePrecise(dis.readDouble());
+    location.origin.z = 0.0;
     if (hasZ) {
-        location.z = dis.readDouble();
+        location.origin.z = dis.readDouble();
     }
     const uint32_t directionCount = dis.readUnsigned();
     if (directionCount != 2u) {
         throw ParseException(
-            "CLOTHOID reference location requires exactly 2 reference directions "
-            "(ISO/IEC 13249-3:2016 §7.8.1)");
+            "CLOTHOID reference location requires exactly 2 reference directions");
     }
-    location.ux = dis.readDouble();
-    location.uy = dis.readDouble();
-    location.uz = 0.0;
+    location.u.x = dis.readDouble();
+    location.u.y = dis.readDouble();
+    location.u.z = 0.0;
     if (hasZ) {
-        location.uz = dis.readDouble();
+        location.u.z = dis.readDouble();
     }
-    location.vx = dis.readDouble();
-    location.vy = dis.readDouble();
-    location.vz = 0.0;
+    location.v.x = dis.readDouble();
+    location.v.y = dis.readDouble();
+    location.v.z = 0.0;
     if (hasZ) {
-        location.vz = dis.readDouble();
+        location.v.z = dis.readDouble();
     }
 
     // Scale and distances use the clothoid byte order, not the placement's.

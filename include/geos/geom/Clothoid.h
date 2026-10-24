@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <geos/export.h>
+#include <geos/geom/Coordinate.h>
 #include <geos/geom/LineString.h>
 #include <geos/geom/SimpleCurve.h>
 
@@ -25,70 +27,29 @@ struct Parameters;
 }
 namespace geom {
 
-/**
- * Reference location of an ST_Clothoid.
- *
- * ISO/IEC 13249-3:2016 §4.9.3. Two reference directions, the images of the
- * constructive X and Y axes. §7.8.1 requires that cardinality to be 2.
- * Z components are zero when the clothoid is not 3D.
- */
+/// Affine reference location: origin and the images of the constructive axes.
 struct GEOS_DLL ClothoidReferenceLocation {
-    double x;
-    double y;
-    double z;
-    double ux;
-    double uy;
-    double uz;
-    double vx;
-    double vy;
-    double vz;
+    Coordinate origin;
+    Coordinate u;
+    Coordinate v;
 };
 
 /**
- * A single ST_Clothoid segment.
+ * An ST_Clothoid (ISO/IEC 13249-3).
  *
- * ISO/IEC 13249-3:2016 §4.2.11 and §7.8. WKT keyword CLOTHOID is the SQL/MM
- * keyword (§5.1.67). WKB type 22, with Z/M/ZM codes 1022/2022/3022
- * (§5.1.68 Table 15). Type 18 is ST_Circle in that table and is not a clothoid.
+ * Stored attributes are an affine reference location, a scale factor, and
+ * the start and end constructive distances from the inflection. Measure,
+ * when present, is a STARTM/ENDM pair.
  *
- * The stored attributes are the reference location (an ST_AffinePlacement),
- * the scale factor, and the start and end constructive distances. Optional
- * measure is a start/end pair (§4.2.11, §7.8.1), not an ordinate of the
- * location point.
- *
- * In the constructive frame the curve is the unit-speed Fresnel clothoid
- * whose scale factor A satisfies A*A = R*t (ISO 19107 clothoid, the curve
- * SQL/MM §4.2.11 places with the Fresnel integrals):
- *
- *   theta(t) = t^2 / (2 A^2)
- *   kappa(t) = t / A^2
- *   X(t) = integral_0^t cos(tau^2 / (2 A^2)) d tau
- *   Y(t) = integral_0^t sin(tau^2 / (2 A^2)) d tau
- *
- * t is the arc length from the inflection in that frame, and the Fresnel
- * limit. The affine placement maps (X, Y) into the coordinate system:
- *
- *   P = location + X * refDirection[0] + Y * refDirection[1]
- *
- * A negative scale factor is stored so WKT and WKB round-trip. ISO/IEC
- * 13249-3:2016 §7.8.4 observes and mutates ST_ScaleFactor and states no sign
- * rule. Evaluation uses A*A, so a negative scale currently matches |A|.
- * WKT and WKB accept only this ISO body. GeometryFactory::createClothoid
- * still accepts an arc-length pose (start, theta0, k0, k1, length) and
- * converts it; that tuple is not a CLOTHOID encoding.
- *
- * The coordinate sequence holds the start point and the integrated end
- * point. getLinearized builds the sampling. Topology operations that refuse
- * curved components still refuse a clothoid whose curvature is not
- * identically zero. This type does not implement a clothoid DE-9IM, overlay,
- * or buffer. ST_SpiralCurve (§4.2.12, §7.9, WKB 23) is not implemented.
- * allure-wkt's inherited-start form CLOTHOID (k0, k1, length) is not accepted.
+ * In the constructive frame, theta(t) = t^2 / (2 A^2) and kappa(t) = t / A^2.
+ * A negative scale factor is stored and evaluated as |A|.
  */
 class GEOS_DLL Clothoid : public SimpleCurve {
 
 public:
 
     friend class GeometryFactory;
+    friend class CompoundCurve;
 
     ~Clothoid() override = default;
 
@@ -100,43 +61,36 @@ public:
 
     double getLength() const override;
 
-    /// Travel heading at the start, radians from +X. Zero when empty.
-    double getStartTangent() const;
+    double getStartHeading() const;
 
-    /// Signed curvature at the start. Zero when empty.
+    /// Signed plan curvature of the placed curve, in the direction of travel.
     double getStartCurvature() const;
 
-    /// Signed curvature at the end. Zero when empty.
+    /// Signed plan curvature of the placed curve, in the direction of travel.
     double getEndCurvature() const;
 
-    /// theta at the end of travel. Equals getStartTangent when empty.
-    double getEndTangent() const;
+    double getEndHeading() const;
 
-    /// ISO/IEC 13249-3:2016 §7.8 ST_ScaleFactor. Zero when empty.
     double getScaleFactor() const
     {
         return m_scale;
     }
 
-    /// Constructive distance of the start from the inflection (§7.8).
     double getStartDistance() const
     {
         return m_t0;
     }
 
-    /// Constructive distance of the end from the inflection (§7.8).
     double getEndDistance() const
     {
         return m_t1;
     }
 
-    /// ST_StartM. Zero when the clothoid is not measured.
     double getStartM() const
     {
         return m_startM;
     }
 
-    /// ST_EndM. Zero when the clothoid is not measured.
     double getEndM() const
     {
         return m_endM;
@@ -163,7 +117,11 @@ public:
         return std::unique_ptr<Clothoid>(reverseImpl());
     }
 
+    /// apply_rw throws; the reference frame is not a coordinate sequence.
     void apply_rw(const CoordinateFilter* filter) override;
+
+    void addLinearizedPoints(CoordinateSequence& seq,
+                             const algorithm::CurveToLineParams& params) const override;
 
     void apply_rw(CoordinateSequenceFilter& filter) override;
 
@@ -213,9 +171,9 @@ protected:
 
 private:
 
-    void loadConstructive(algorithm::clothoid::Parameters& curve) const;
-
-    void pointOnCurve(double travel, double& x, double& y, double& z, double& m) const;
+    void appendLinearizedPoints(CoordinateSequence& seq,
+                                const algorithm::CurveToLineParams& params,
+                                std::size_t first) const;
 
     Envelope computeClothoidEnvelope() const;
 
@@ -225,15 +183,13 @@ private:
 
     double travelCurvature(double constructiveDistance) const;
 
-    double m_locX;
-    double m_locY;
-    double m_locZ;
-    double m_ux;
-    double m_uy;
-    double m_uz;
-    double m_vx;
-    double m_vy;
-    double m_vz;
+    /// Move stored endpoint 0 or 1 onto a neighbor's coordinate when they
+    /// differ only by rounding in the evaluation of the reference location.
+    void snapEndpoint(std::size_t index, const CoordinateXY& target);
+
+    Coordinate m_origin;
+    Coordinate m_u;
+    Coordinate m_v;
     double m_scale;
     double m_t0;
     double m_t1;
