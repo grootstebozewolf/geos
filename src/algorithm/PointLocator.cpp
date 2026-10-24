@@ -113,6 +113,12 @@ PointLocator::computeLocation(const CoordinateXY& p, const Geometry* geom)
             updateLocationInfo(locate(p, po));
             break;
         }
+        case GEOS_CURVEPOLYGON: {
+            updateLocationInfo(locate(p, static_cast<const Surface*>(geom)));
+            break;
+        }
+        case GEOS_MULTICURVE:
+        case GEOS_MULTISURFACE:
         case GEOS_MULTIPOINT: {
             const GeometryCollection* col = static_cast<const GeometryCollection*>(geom);
             for(const auto & g2 : *col) {
