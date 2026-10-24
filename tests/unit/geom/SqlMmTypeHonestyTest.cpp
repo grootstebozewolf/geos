@@ -1,6 +1,8 @@
 // SQL/MM ISO/IEC 13249-3 type honesty (Proofs #660 leftovers).
 // Named getLinearized is the only allowed linear fallback.
-// Silent LINESTRING / POLYGON / MULTILINESTRING / MULTIPOLYGON emit is a refuse.
+// Overlay follows upstream GEOS (TestOverlayCurvesAA/LA.xml): a result keeps
+// curve types where an arc survives, and a part with no arc left is emitted
+// as LINESTRING / POLYGON.
 
 #include <tut/tut.hpp>
 #include <utility.h>
@@ -129,19 +131,26 @@ void object::test<3>()
     ensure_equals(lin->getGeometryTypeId(), GeometryTypeId::GEOS_LINESTRING);
 }
 
-// Ticket 32: all-linear CurvePolygon overlay stays CurvePolygon, not Polygon.
+// Ticket 32: overlay of all-linear CurvePolygons has no arc left, so it
+// emits Polygon as upstream does. An arc that survives keeps CurvePolygon.
 template<>
 template<>
 void object::test<4>()
 {
-    set_test_name("all-linear CurvePolygon overlay does not emit Polygon");
+    set_test_name("all-linear CurvePolygon overlay emits Polygon, an arc keeps CurvePolygon");
 
     auto a = read("CURVEPOLYGON (LINESTRING (0 0, 2 0, 2 2, 0 2, 0 0))");
     auto b = read("CURVEPOLYGON (LINESTRING (1 1, 3 1, 3 3, 1 3, 1 1))");
     auto result = OverlayNG::overlay(a.get(), b.get(), OverlayNG::UNION);
     ensure(result != nullptr);
-    ensure(result->hasCurvedTypes());
-    ensure(!isLinearCollectionType(result->getGeometryTypeId()));
+    ensure_equals(result->getGeometryTypeId(), GeometryTypeId::GEOS_POLYGON);
+    ensure_equals(result->getArea(), 7.0);
+
+    auto arc = read("CURVEPOLYGON (CIRCULARSTRING (0 0, 2 0, 0 0))");
+    auto square = read("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))");
+    auto curved = OverlayNG::overlay(arc.get(), square.get(), OverlayNG::UNION);
+    ensure_equals(curved->getGeometryTypeId(), GeometryTypeId::GEOS_CURVEPOLYGON);
+    ensure(curved->hasCurvedComponents());
 }
 
 // Ticket 34: MultiCurve overlay stays a curve collection, not MultiLineString.
@@ -159,20 +168,21 @@ void object::test<5>()
     ensure(result->hasCurvedTypes());
 }
 
-// Ticket 36: MultiSurface overlay stays MultiSurface / CurvePolygon, not MultiPolygon.
+// Ticket 36: overlay of all-linear MultiSurfaces has no arc left, so it
+// emits MultiPolygon as upstream does.
 template<>
 template<>
 void object::test<6>()
 {
-    set_test_name("MultiSurface overlay does not emit MultiPolygon");
+    set_test_name("all-linear MultiSurface overlay emits MultiPolygon");
 
     auto a = read("MULTISURFACE (CURVEPOLYGON (LINESTRING (0 0, 1 0, 1 1, 0 1, 0 0)))");
     auto b = read("MULTISURFACE (CURVEPOLYGON (LINESTRING (2 2, 3 2, 3 3, 2 3, 2 2)))");
     auto result = OverlayNG::overlay(a.get(), b.get(), OverlayNG::UNION);
     ensure(result != nullptr);
-    ensure_not(result->getGeometryTypeId() == GeometryTypeId::GEOS_MULTIPOLYGON);
-    ensure_not(result->getGeometryTypeId() == GeometryTypeId::GEOS_POLYGON);
-    ensure(result->hasCurvedTypes());
+    ensure_equals(result->getGeometryTypeId(), GeometryTypeId::GEOS_MULTIPOLYGON);
+    ensure_equals(result->getNumGeometries(), 2u);
+    ensure_equals(result->getArea(), 2.0);
 }
 
 // CIRCLE / GEODESICSTRING / NURBSCURVE / SPIRALCURVE stay named refuses.
