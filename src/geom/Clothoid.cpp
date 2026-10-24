@@ -226,12 +226,12 @@ double
 integrateSpeed(const Frame& frame)
 {
     const double a2 = frame.scale * frame.scale;
-    const double tLo = std::min(frame.t0, frame.t1);
-    const double tHi = std::max(frame.t0, frame.t1);
-    if (!(tHi > tLo) || !(a2 > 0.0)) {
+    const double tMin = std::min(frame.t0, frame.t1);
+    const double tMax = std::max(frame.t0, frame.t1);
+    if (!(tMax > tMin) || !(a2 > 0.0)) {
         return 0.0;
     }
-    const double dTheta = std::abs(tHi * tHi - tLo * tLo) / (2.0 * a2);
+    const double dTheta = std::abs(tMax * tMax - tMin * tMin) / (2.0 * a2);
     int panels = static_cast<int>(std::ceil(dTheta / 0.25));
     if (panels < 1) {
         panels = 1;
@@ -239,10 +239,10 @@ integrateSpeed(const Frame& frame)
     if (panels > 4096) {
         panels = 4096;
     }
-    const double width = (tHi - tLo) / static_cast<double>(panels);
+    const double width = (tMax - tMin) / static_cast<double>(panels);
     double sum = 0.0;
     for (int p = 0; p < panels; ++p) {
-        const double a = tLo + width * static_cast<double>(p);
+        const double a = tMin + width * static_cast<double>(p);
         const double mid = a + 0.5 * width;
         const double half = 0.5 * width;
         for (int i = 0; i < GL_N; ++i) {
@@ -656,27 +656,27 @@ Clothoid::computeClothoidEnvelope() const
     if (!(a2 > 0.0) || !(length > 0.0)) {
         return env;
     }
-    const double tLo = std::min(m_t0, m_t1);
-    const double tHi = std::max(m_t0, m_t1);
+    const double tMin = std::min(m_t0, m_t1);
+    const double tMax = std::max(m_t0, m_t1);
     auto thetaOf = [a2](double t) {
         return (t * t) / (2.0 * a2);
     };
     double thetaMin = 0.0;
     double thetaMax = 0.0;
-    if (tLo <= 0.0 && tHi >= 0.0) {
+    if (tMin <= 0.0 && tMax >= 0.0) {
         thetaMin = 0.0;
-        thetaMax = std::max(thetaOf(tLo), thetaOf(tHi));
+        thetaMax = std::max(thetaOf(tMin), thetaOf(tMax));
     }
     else {
-        thetaMin = std::min(thetaOf(tLo), thetaOf(tHi));
-        thetaMax = std::max(thetaOf(tLo), thetaOf(tHi));
+        thetaMin = std::min(thetaOf(tMin), thetaOf(tMax));
+        thetaMax = std::max(thetaOf(tMin), thetaOf(tMax));
     }
     if ((thetaMax - thetaMin) / MATH_PI > 100000.0) {
         return env;
     }
 
     auto addIfInterior = [&](double t) {
-        if (t > tLo && t < tHi) {
+        if (t > tMin && t < tMax) {
             double xc = 0.0;
             double yc = 0.0;
             double heading = 0.0;

@@ -176,8 +176,8 @@ fresnelSeriesS(double x)
     double term = (x * x * x) / 6.0;
     double sum = term;
     for (int n = 1; n < 80; ++n) {
-        const double twoN = static_cast<double>(2 * n);
-        term *= -x4 / ((twoN + 1.0) * twoN * 4.0);
+        const double twiceN = static_cast<double>(2 * n);
+        term *= -x4 / ((twiceN + 1.0) * twiceN * 4.0);
         term *= (4.0 * n - 1.0) / (4.0 * n + 3.0);
         sum += term;
         if (std::abs(term) <= 1e-18 * std::max(1.0, std::abs(sum))) {
