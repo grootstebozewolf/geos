@@ -709,6 +709,7 @@ void object::test<34>()
     // u = v: a parallel placement is singular too.
     auto diagonal = curve->affineTransform(1.0, 1.0, 0.0, 1.0, 1.0, 0.0);
     ensure(!diagonal->hasRegularPlacement());
+    ensure(!diagonal->isEulerSpiral());
 
     auto point = curve->affineTransform(0.0, 0.0, 5.0, 0.0, 0.0, 6.0);
     ensure(!point->hasRegularPlacement());
@@ -725,7 +726,7 @@ template<>
 template<>
 void object::test<35>()
 {
-    set_test_name("affine image keeps Z and M");
+    set_test_name("affine image keeps Z, M and SRID");
 
     // The plan part is a similarity; the tilt in Z does not change that.
     ClothoidReferenceLocation tilted{
@@ -751,6 +752,9 @@ void object::test<35>()
     ensure_equals("y", after.y, before.y + 20.0, 1e-12);
     ensure_equals("z", after.z, before.z, 1e-12);
     ensure_equals("m", after.m, before.m);
+
+    curve->setSRID(28992);
+    ensure_equals(curve->affineTransform(1.0, 0.0, 10.0, 0.0, 1.0, 20.0)->getSRID(), 28992);
 }
 
 template<>
@@ -761,11 +765,15 @@ void object::test<36>()
 
     auto curve = factory_->createClothoid(identityAt(0.0, 0.0), 1.0, 0.0, 2.0, false, false, 0.0, 0.0);
 
-    const double scales[] = {1e-13, 1e-6, 1e6};
+    // The identity placement maps u to (m00, m10) and v to (m01, m11).
+    const double scales[] = {1e-300, 1e-13, 1e-6, 1.0, 1e6, 1e300};
     for (double k : scales) {
         ensure(curve->affineTransform(k, 0.0, 0.0, 0.0, k, 0.0)->isEulerSpiral());
-        ensure(!curve->affineTransform(2.0 * k, 0.0, 0.0, 0.0, k, 0.0)->isEulerSpiral());
-        ensure(!curve->affineTransform(k, 0.5 * k, 0.0, 0.0, k, 0.0)->isEulerSpiral());
+        ensure(curve->affineTransform(0.6 * k, -0.8 * k, 0.0, 0.8 * k, 0.6 * k, 0.0)->isEulerSpiral());
+        // Squashed 10:1, sheared with equal lengths, and collapsed to u = v.
+        ensure(!curve->affineTransform(k, 0.0, 0.0, 0.0, 0.1 * k, 0.0)->isEulerSpiral());
+        ensure(!curve->affineTransform(k, 0.6 * k, 0.0, 0.0, 0.8 * k, 0.0)->isEulerSpiral());
+        ensure(!curve->affineTransform(k, k, 0.0, 0.0, 0.0, 0.0)->isEulerSpiral());
     }
 }
 
@@ -796,6 +804,23 @@ void object::test<37>()
                 }
             }
         }
+    }
+}
+
+template<>
+template<>
+void object::test<38>()
+{
+    set_test_name("singular placement threshold");
+
+    auto curve = factory_->createClothoid(identityAt(0.0, 0.0), 1.0, 0.0, 2.0, false, false, 0.0, 0.0);
+
+    // u = (k, 0) and v = (k, k sin): regular only while sin exceeds 1e-12.
+    const double scales[] = {1e-300, 1e-13, 1.0, 1e6, 1e300};
+    for (double k : scales) {
+        ensure(curve->affineTransform(k, 0.0, 0.0, 0.0, k, 0.0)->hasRegularPlacement());
+        ensure(curve->affineTransform(k, k, 0.0, 0.0, 1e-11 * k, 0.0)->hasRegularPlacement());
+        ensure(!curve->affineTransform(k, k, 0.0, 0.0, 1e-13 * k, 0.0)->hasRegularPlacement());
     }
 }
 

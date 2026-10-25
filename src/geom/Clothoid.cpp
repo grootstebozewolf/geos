@@ -197,6 +197,27 @@ similarityScale(const Frame& frame, double& scale, int& orientation)
     return true;
 }
 
+// Plan lengths of u and v, and the cosine and sine of the plan angle from
+// u to v. The angle is taken from unit directions, so that it neither
+// overflows nor underflows at extreme placement scales.
+bool
+planAngle(const Coordinate& u, const Coordinate& v,
+          double& uLen, double& vLen, double& cosine, double& sine)
+{
+    uLen = std::hypot(u.x, u.y);
+    vLen = std::hypot(v.x, v.y);
+    if (!(uLen > 0.0) || !(vLen > 0.0)) {
+        return false;
+    }
+    const double ux = u.x / uLen;
+    const double uy = u.y / uLen;
+    const double vx = v.x / vLen;
+    const double vy = v.y / vLen;
+    cosine = ux * vx + uy * vy;
+    sine = ux * vy - uy * vx;
+    return true;
+}
+
 double
 operatorNorm(const Frame& frame)
 {
@@ -504,14 +525,16 @@ Clothoid::isEulerSpiral() const
     // Both tests are relative to |u| and |v|. similarityScale() floors its
     // tolerance at SIMILARITY_RELATIVE, which would pass any shape at a
     // placement scale near that floor.
-    const double uLen = std::hypot(m_u.x, m_u.y);
-    const double vLen = std::hypot(m_v.x, m_v.y);
-    if (!(uLen > 0.0) || !(vLen > 0.0)) {
+    double uLen = 0.0;
+    double vLen = 0.0;
+    double cosine = 0.0;
+    double sine = 0.0;
+    if (!planAngle(m_u, m_v, uLen, vLen, cosine, sine)) {
         return false;
     }
-    const double dot = m_u.x * m_v.x + m_u.y * m_v.y;
-    const double tol = SIMILARITY_RELATIVE * std::max(uLen, vLen);
-    return std::abs(uLen - vLen) <= tol && std::abs(dot) <= tol * std::min(uLen, vLen);
+    return hasRegularPlacement()
+           && std::abs(uLen - vLen) <= SIMILARITY_RELATIVE * std::max(uLen, vLen)
+           && std::abs(cosine) <= SIMILARITY_RELATIVE;
 }
 
 bool
@@ -520,10 +543,11 @@ Clothoid::hasRegularPlacement() const
     if (isEmpty()) {
         return false;
     }
-    const double uLen = std::hypot(m_u.x, m_u.y);
-    const double vLen = std::hypot(m_v.x, m_v.y);
-    const double det = m_u.x * m_v.y - m_u.y * m_v.x;
-    return uLen > 0.0 && vLen > 0.0 && std::abs(det) > SINGULAR_RELATIVE * uLen * vLen;
+    double uLen = 0.0;
+    double vLen = 0.0;
+    double cosine = 0.0;
+    double sine = 0.0;
+    return planAngle(m_u, m_v, uLen, vLen, cosine, sine) && std::abs(sine) > SINGULAR_RELATIVE;
 }
 
 std::unique_ptr<Clothoid>
@@ -547,8 +571,10 @@ Clothoid::affineTransform(double m00, double m01, double m02,
                                  m_origin.z);
     location.u = Coordinate(m00 * m_u.x + m01 * m_u.y, m10 * m_u.x + m11 * m_u.y, m_u.z);
     location.v = Coordinate(m00 * m_v.x + m01 * m_v.y, m10 * m_v.x + m11 * m_v.y, m_v.z);
-    return getFactory()->createClothoid(location, m_scale, m_t0, m_t1,
-                                        hasZ(), hasM(), m_startM, m_endM);
+    auto image = getFactory()->createClothoid(location, m_scale, m_t0, m_t1,
+                 hasZ(), hasM(), m_startM, m_endM);
+    image->setSRID(getSRID());
+    return image;
 }
 
 bool
