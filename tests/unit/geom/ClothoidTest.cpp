@@ -633,4 +633,127 @@ void object::test<31>()
                  geos::util::IllegalArgumentException);
 }
 
+template<>
+template<>
+void object::test<32>()
+{
+    set_test_name("sheared image is exact");
+
+    // (x, y) -> (x + 0.5 y + 3, y - 1)
+    auto image = [](const CoordinateXY& p) {
+        return CoordinateXY(p.x + 0.5 * p.y + 3.0, p.y - 1.0);
+    };
+    auto whole = factory_->createClothoid(identityAt(1.0, 2.0), 10.0, 2.0, 8.0, false, false, 0.0, 0.0);
+    auto sheared = whole->affineTransform(1.0, 0.5, 3.0, 0.0, 1.0, -1.0);
+
+    ensure(whole->isEulerSpiral());
+    ensure(!sheared->isEulerSpiral());
+    ensure(sheared->hasRegularPlacement());
+
+    ClothoidReferenceLocation expected{
+        Coordinate(5.0, 1.0, 0.0), Coordinate(1.0, 0.0, 0.0), Coordinate(0.5, 1.0, 0.0)};
+    ensure(sheared->equalsIdentical(
+               factory_->createClothoid(expected, 10.0, 2.0, 8.0, false, false, 0.0, 0.0).get()));
+
+    // Interior points: the end of each leading piece, mapped, is the end of
+    // the same piece of the image.
+    for (double t = 2.5; t <= 8.0; t += 0.5) {
+        auto piece = factory_->createClothoid(identityAt(1.0, 2.0), 10.0, 2.0, t, false, false, 0.0, 0.0);
+        auto mapped = piece->affineTransform(1.0, 0.5, 3.0, 0.0, 1.0, -1.0);
+        ensure(mapped->getEndCoordinate().distance(image(piece->getEndCoordinate())) < 1e-12);
+    }
+    ensure(sheared->getStartCoordinate().distance(image(whole->getStartCoordinate())) < 1e-12);
+}
+
+template<>
+template<>
+void object::test<33>()
+{
+    set_test_name("similarity image is an Euler spiral");
+
+    auto curve = factory_->createClothoid(identityAt(1.0, 2.0), 10.0, 2.0, 8.0, false, false, 0.0, 0.0);
+
+    // Rotate by 30 degrees, scale by 2, translate.
+    const double c = 2.0 * std::cos(geos::MATH_PI / 6.0);
+    const double s = 2.0 * std::sin(geos::MATH_PI / 6.0);
+    auto rotated = curve->affineTransform(c, -s, 4.0, s, c, -7.0);
+    ensure(rotated->isEulerSpiral());
+    ensure(rotated->hasRegularPlacement());
+    ensure_equals("length", rotated->getLength(), 2.0 * curve->getLength(), 1e-12);
+    ensure_equals("start curvature", rotated->getStartCurvature(), 0.5 * curve->getStartCurvature(), 1e-15);
+    ensure_equals("end curvature", rotated->getEndCurvature(), 0.5 * curve->getEndCurvature(), 1e-15);
+    ensure_equals("start heading", rotated->getStartHeading(), curve->getStartHeading() + geos::MATH_PI / 6.0, 1e-12);
+
+    // A reflection keeps the Euler spiral and turns the other way.
+    auto mirrored = curve->affineTransform(1.0, 0.0, 0.0, 0.0, -1.0, 0.0);
+    ensure(mirrored->isEulerSpiral());
+    ensure_equals("mirrored start curvature", mirrored->getStartCurvature(), -curve->getStartCurvature());
+    ensure_equals("mirrored end curvature", mirrored->getEndCurvature(), -curve->getEndCurvature());
+    ensure_equals("mirrored length", mirrored->getLength(), curve->getLength());
+}
+
+template<>
+template<>
+void object::test<34>()
+{
+    set_test_name("singular image");
+
+    auto curve = factory_->createClothoid(identityAt(1.0, 2.0), 1.0, 0.0, 4.0, false, false, 0.0, 0.0);
+
+    // Onto the x axis: still built, and still curved past its chord.
+    auto flat = curve->affineTransform(1.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    ensure(!flat->hasRegularPlacement());
+    ensure(!flat->isEulerSpiral());
+    ensure(flat->hasCurvedComponents());
+
+    // u = v: a parallel placement is singular too.
+    auto diagonal = curve->affineTransform(1.0, 1.0, 0.0, 1.0, 1.0, 0.0);
+    ensure(!diagonal->hasRegularPlacement());
+
+    auto point = curve->affineTransform(0.0, 0.0, 5.0, 0.0, 0.0, 6.0);
+    ensure(!point->hasRegularPlacement());
+    ensure(!point->hasCurvedComponents());
+    ensure(point->getStartCoordinate().equals2D(CoordinateXY(5.0, 6.0)));
+
+    auto empty = factory_->createClothoid(false, false);
+    ensure(empty->affineTransform(2.0, 0.0, 1.0, 0.0, 2.0, 1.0)->isEmpty());
+    ensure(!empty->isEulerSpiral());
+    ensure(!empty->hasRegularPlacement());
+
+    ensure_THROW(curve->affineTransform(std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 1.0, 0.0),
+                 geos::util::IllegalArgumentException);
+}
+
+template<>
+template<>
+void object::test<35>()
+{
+    set_test_name("affine image keeps Z and M");
+
+    // The plan part is a similarity; the tilt in Z does not change that.
+    ClothoidReferenceLocation tilted{
+        Coordinate(1.0, 2.0, 3.0), Coordinate(1.0, 0.0, 0.25), Coordinate(0.0, 1.0, 0.0)};
+    auto curve = factory_->createClothoid(tilted, 2.0, -1.0, 3.0, true, true, 5.0, 9.0);
+    ensure(curve->isEulerSpiral());
+
+    auto moved = curve->affineTransform(1.0, 0.0, 10.0, 0.0, 1.0, 20.0);
+    ensure(moved->hasZ());
+    ensure(moved->hasM());
+    const ClothoidReferenceLocation location = moved->getReferenceLocation();
+    ensure_equals(location.origin.z, 3.0);
+    ensure_equals(location.u.z, 0.25);
+    ensure_equals(location.v.z, 0.0);
+    ensure_equals(moved->getStartM(), 5.0);
+    ensure_equals(moved->getEndM(), 9.0);
+
+    CoordinateXYZM before;
+    CoordinateXYZM after;
+    curve->getCoordinatesRO()->getAt(1, before);
+    moved->getCoordinatesRO()->getAt(1, after);
+    ensure_equals("x", after.x, before.x + 10.0, 1e-12);
+    ensure_equals("y", after.y, before.y + 20.0, 1e-12);
+    ensure_equals("z", after.z, before.z, 1e-12);
+    ensure_equals("m", after.m, before.m);
+}
+
 } // namespace tut

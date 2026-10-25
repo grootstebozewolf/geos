@@ -38,6 +38,22 @@ struct GEOS_DLL ClothoidReferenceLocation {
  *
  * In the constructive frame, theta(t) = t^2 / (2 A^2) and kappa(t) = t / A^2.
  * A negative scale factor is stored and evaluated as |A|.
+ *
+ * The reference location may be any affine placement, so an affine image of
+ * a clothoid is again a clothoid; affineTransform() composes the map into
+ * the placement. The placed curve is an Euler spiral only while the plan
+ * part of the placement is a similarity (isEulerSpiral()), and a regular
+ * curve only while it is invertible (hasRegularPlacement()). A singular
+ * placement is accepted, and traces a line or a point.
+ *
+ * Operations on clothoids split at the placement. A result that depends only
+ * on plan topology carries across an invertible affine map applied to all
+ * inputs alike: intersection points and noding, point location, and
+ * orientation, which flips when the determinant is negative. It may be
+ * computed in any such frame, for example one where a clothoid is an Euler
+ * spiral, and mapped back. A metric result does not carry across: distance,
+ * nearest points, length, buffer, Hausdorff distance and snap rounding are
+ * computed on the placed curve itself.
  */
 class GEOS_DLL Clothoid : public SimpleCurve {
 
@@ -92,6 +108,22 @@ public:
     }
 
     ClothoidReferenceLocation getReferenceLocation() const;
+
+    /// True when the plan image is an Euler spiral: the plan part of the
+    /// placement is a non-zero similarity, so plan curvature is affine in
+    /// plan arc length. An invertible affine image of an Euler spiral is an
+    /// Euler spiral exactly when the linear part of the map is a similarity.
+    bool isEulerSpiral() const;
+
+    /// True when the plan part of the placement is invertible, so the plan
+    /// image is a regular curve.
+    bool hasRegularPlacement() const;
+
+    /// The image under (x, y) -> (m00 x + m01 y + m02, m10 x + m11 y + m12),
+    /// with Z and M unchanged. The map is composed into the reference
+    /// location, so the image is exact rather than linearized.
+    std::unique_ptr<Clothoid> affineTransform(double m00, double m01, double m02,
+                                              double m10, double m11, double m12) const;
 
     bool hasCurvedComponents() const override;
 
