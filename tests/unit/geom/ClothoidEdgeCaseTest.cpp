@@ -442,7 +442,7 @@ template<>
 template<>
 void object::test<15>()
 {
-    set_test_name("operations without clothoid support");
+    set_test_name("operations without clothoid support, and those now with it");
 
     using geos::operation::overlayng::OverlayNG;
     auto curve = spiral();
@@ -456,20 +456,19 @@ void object::test<15>()
                  UnsupportedOperationException);
     ensure_THROW(OverlayNG::overlay(polygon.get(), square.get(), OverlayNG::INTERSECTION),
                  UnsupportedOperationException);
-    ensure_THROW(geos::operation::distance::DistanceOp::distance(*curve, *line),
-                 UnsupportedOperationException);
-    ensure_THROW(geos::operation::distance::DistanceOp::distance(*line, *curve),
-                 UnsupportedOperationException);
-
+    // Distance and point location are supported (ClothoidOperationsTest).
+    ensure_equals(geos::operation::distance::DistanceOp::distance(*curve, *line), 0.0);
+    ensure_equals(geos::operation::distance::DistanceOp::distance(*line, *curve), 0.0);
     geos::algorithm::PointLocator locator;
-    ensure_THROW(locator.locate(CoordinateXY(0.5, 0.5), curve.get()), UnsupportedOperationException);
-    // A clothoid ring section must not be counted as a circular arc.
-    const CoordinateXY inside(1.5, 0.1);
-    ensure(polygon->getEnvelopeInternal()->contains(inside));
-    ensure_THROW(geos::algorithm::RayCrossingCounter::locatePointInRing(inside, *closed),
-                 UnsupportedOperationException);
-    ensure_THROW(geos::algorithm::locate::SimplePointInAreaLocator::locate(inside, polygon.get()),
-                 UnsupportedOperationException);
+    ensure_equals(locator.locate(CoordinateXY(0.5, 0.5), curve.get()), geos::geom::Location::EXTERIOR);
+    // A clothoid ring section is not counted as a circular arc.
+    auto reference = polygon->getLinearized(geos::algorithm::CurveToLineParams::maxDeviation(1e-9));
+    for (const CoordinateXY& p : {CoordinateXY(1.5, 0.1), CoordinateXY(1.5, 0.2)}) {
+        ensure(polygon->getEnvelopeInternal()->contains(p));
+        const auto expected = geos::algorithm::locate::SimplePointInAreaLocator::locate(p, reference.get());
+        ensure_equals(geos::algorithm::RayCrossingCounter::locatePointInRing(p, *closed), expected);
+        ensure_equals(geos::algorithm::locate::SimplePointInAreaLocator::locate(p, polygon.get()), expected);
+    }
 
     geos::operation::polygonize::Polygonizer polygonizer;
     ensure_THROW(polygonizer.add(static_cast<const geos::geom::Geometry*>(curve.get())),

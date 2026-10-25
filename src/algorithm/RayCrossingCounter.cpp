@@ -16,16 +16,17 @@
  *
  **********************************************************************/
 
+#include <algorithm/ClothoidGeometry.h>
 #include <geos/algorithm/CGAlgorithmsDD.h>
 #include <geos/algorithm/RayCrossingCounter.h>
 #include <geos/geom/CircularArc.h>
+#include <geos/geom/Clothoid.h>
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/CoordinateSequence.h>
 #include <geos/geom/Curve.h>
 #include <geos/geom/Geometry.h>
 #include <geos/geom/Location.h>
 #include <geos/geom/SimpleCurve.h>
-#include <geos/util/UnsupportedOperationException.h>
 
 using geos::geom::CoordinateXY;
 
@@ -89,8 +90,11 @@ RayCrossingCounter::locatePointInRing(const geom::CoordinateXY& point,
     for (std::size_t i = 0; i < ring.getNumCurves(); i++) {
         const geom::SimpleCurve* curve = ring.getCurveN(i);
         if (curve->getGeometryTypeId() == geom::GEOS_CLOTHOID) {
-            throw util::UnsupportedOperationException(
-                "Clothoid point location is not implemented");
+            rcc.countClothoid(static_cast<const geom::Clothoid&>(*curve));
+            if (rcc.isOnSegment()) {
+                return geom::Location::BOUNDARY;
+            }
+            continue;
         }
         rcc.processSequence(*curve->getCoordinatesRO(), !curve->hasCurvedComponents());
     }
@@ -125,6 +129,20 @@ RayCrossingCounter::processSequence(const geom::CoordinateSequence& seq, bool is
                 return;
             }
         }
+    }
+}
+
+void
+RayCrossingCounter::countClothoid(const geom::Clothoid& curve)
+{
+    if (isOnSegment() || curve.isEmpty()) {
+        return;
+    }
+    const clothoid::PlacedClothoid placed(curve);
+    bool onCurve = false;
+    clothoid::countRayCrossings(placed, point, crossingCount, onCurve);
+    if (onCurve) {
+        isPointOnSegment = true;
     }
 }
 

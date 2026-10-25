@@ -26,6 +26,7 @@
 namespace geos {
 namespace geom {
 class CircularString;
+class Clothoid;
 class CompoundCurve;
 class CoordinateXY;
 class Curve;
@@ -103,6 +104,8 @@ private:
     geom::Location locate(const geom::CoordinateXY& p, const geom::CircularString* cs);
 
     geom::Location locate(const geom::CoordinateXY& p, const geom::CompoundCurve* cs);
+
+    geom::Location locateOnClothoid(const geom::CoordinateXY& p, const geom::Clothoid* c);
 
     static geom::Location locateInPolygonRing(const geom::CoordinateXY& p, const geom::Curve* ring);
 

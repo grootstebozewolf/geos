@@ -9,6 +9,8 @@
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/GeometryFactory.h>
 #include <geos/geom/LineString.h>
+#include <geos/geom/Location.h>
+#include <geos/geom/Point.h>
 #include <geos/io/ParseException.h>
 #include <geos/io/WKBReader.h>
 #include <geos/io/WKBWriter.h>
@@ -322,7 +324,8 @@ void object::test<16>()
 
     auto compound = lineThenClothoid();
     auto point = factory_->createPoint(CoordinateXY(0.0, 10.0));
-    ensure_THROW(point->distance(compound.get()), geos::util::UnsupportedOperationException);
+    auto reference = compound->getLinearized(CurveToLineParams::maxDeviation(1e-9));
+    ensure_equals("distance", point->distance(compound.get()), point->distance(reference.get()), 1e-8);
 }
 
 template<>
@@ -347,7 +350,18 @@ void object::test<18>()
     const CoordinateXY end = compound->getCurveN(1)->getEndCoordinate();
     PointLocator locator;
     const geos::geom::Geometry* geom = compound.get();
-    ensure_THROW(locator.locate(end, geom), geos::util::UnsupportedOperationException);
+
+    // The end is located as it is on a CompoundCurve whose last section is linear.
+    std::vector<std::unique_ptr<SimpleCurve>> sections;
+    sections.push_back(factory_->createLineString({CoordinateXY(0.0, 0.0), CoordinateXY(1.0, 0.0)}));
+    sections.push_back(factory_->createLineString({CoordinateXY(1.0, 0.0), end}));
+    auto linear = factory_->createCompoundCurve(std::move(sections));
+    ensure_equals(locator.locate(end, geom), locator.locate(end, static_cast<const geos::geom::Geometry*>(linear.get())));
+
+    auto reference = compound->getCurveN(1)->getLinearized(CurveToLineParams::maxDeviation(1e-9));
+    const CoordinateXY onClothoid = reference->getCoordinates()->getAt<CoordinateXY>(7);
+    ensure_equals(locator.locate(onClothoid, geom), geos::geom::Location::INTERIOR);
+    ensure_equals(locator.locate(CoordinateXY(3.0, 2.0), geom), geos::geom::Location::EXTERIOR);
 }
 
 template<>

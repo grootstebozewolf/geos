@@ -38,6 +38,7 @@
 namespace geos {
 namespace geom {
 class CircularString;
+class Clothoid;
 class Coordinate;
 class Polygon;
 class LineString;
@@ -240,6 +241,15 @@ private:
                             std::array<GeometryLocation, 2> & locGeom);
 
     void computeMinDistance(const geom::CircularString* cs,
+                            const geom::Point* pt,
+                            std::array<GeometryLocation, 2> & locGeom);
+
+    /// locGeom[0] is on the clothoid, locGeom[1] on the other curve.
+    void computeMinDistanceClothoid(const geom::Clothoid* clothoid,
+                                    const geom::SimpleCurve* other,
+                                    std::array<GeometryLocation, 2> & locGeom);
+
+    void computeMinDistance(const geom::Clothoid* clothoid,
                             const geom::Point* pt,
                             std::array<GeometryLocation, 2> & locGeom);
 };

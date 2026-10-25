@@ -18,12 +18,14 @@
  *
  **********************************************************************/
 
+#include <algorithm/ClothoidGeometry.h>
 #include <geos/constants.h>
 #include <geos/operation/distance/DistanceOp.h>
 #include <geos/operation/distance/GeometryLocation.h>
 #include <geos/operation/distance/ConnectedElementLocationFilter.h>
 #include <geos/algorithm/Distance.h>
 #include <geos/geom/CircularString.h>
+#include <geos/geom/Clothoid.h>
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/CoordinateSequence.h>
 #include <geos/geom/LineString.h>
@@ -368,21 +370,25 @@ DistanceOp::computeMinDistanceLines(
     std::array<GeometryLocation, 2> & locGeom)
 {
     for(const SimpleCurve* line0 : lines0) {
-        if (line0->getGeometryTypeId() == GEOS_CLOTHOID) {
-            throw util::UnsupportedOperationException("Clothoid distance is not implemented");
-        }
         const bool isCurved0 = line0->getGeometryTypeId() == GEOS_CIRCULARSTRING;
 
         for(const SimpleCurve* line1 : lines1) {
-            if (line1->getGeometryTypeId() == GEOS_CLOTHOID) {
-                throw util::UnsupportedOperationException("Clothoid distance is not implemented");
-            }
             const bool isCurved1 = line1->getGeometryTypeId() == GEOS_CIRCULARSTRING;
 
             if (line0->isEmpty() || line1->isEmpty())
                 continue;
 
-            if (isCurved0) {
+            if (line0->getGeometryTypeId() == GEOS_CLOTHOID) {
+                computeMinDistanceClothoid(detail::down_cast<const Clothoid*>(line0), line1, locGeom);
+            } else if (line1->getGeometryTypeId() == GEOS_CLOTHOID) {
+                std::array<GeometryLocation, 2> flipped;
+                const double before = minDistance;
+                computeMinDistanceClothoid(detail::down_cast<const Clothoid*>(line1), line0, flipped);
+                if (minDistance < before) {
+                    locGeom[0] = flipped[1];
+                    locGeom[1] = flipped[0];
+                }
+            } else if (isCurved0) {
                 const CircularString* cs0 = detail::down_cast<const CircularString*>(line0);
                 if (isCurved1) {
                     const CircularString* cs1 = detail::down_cast<const CircularString*>(line1);
@@ -456,9 +462,8 @@ DistanceOp::computeMinDistanceLinesPoints(
                 continue;
 
             if (sc->getGeometryTypeId() == GEOS_CLOTHOID) {
-                throw util::UnsupportedOperationException("Clothoid distance is not implemented");
-            }
-            if (sc->getGeometryTypeId() == GEOS_CIRCULARSTRING) {
+                computeMinDistance(detail::down_cast<const Clothoid*>(sc), pt, locGeom);
+            } else if (sc->getGeometryTypeId() == GEOS_CIRCULARSTRING) {
                 const CircularString* cs = detail::down_cast<const CircularString*>(sc);
                 computeMinDistance(cs, pt, locGeom);
             } else {
@@ -701,6 +706,77 @@ DistanceOp::computeMinDistance(const CircularString* cs,
         if(minDistance <= terminateDistance) {
             return;
         }
+    }
+}
+
+/*private*/
+void
+DistanceOp::computeMinDistanceClothoid(const Clothoid* clothoid,
+                                       const SimpleCurve* other,
+                                       std::array<GeometryLocation, 2> & locGeom)
+{
+    using namespace geos::algorithm::clothoid;
+
+    const Envelope* env0 = clothoid->getEnvelopeInternal();
+    if (env0->distance(*other->getEnvelopeInternal()) > minDistance) {
+        return;
+    }
+    const PlacedClothoid placed(*clothoid);
+    auto record = [&](const Nearest& n, std::size_t otherIndex) {
+        if (n.distance < minDistance) {
+            minDistance = n.distance;
+            locGeom[0] = GeometryLocation(clothoid, 0, n.onCurve);
+            locGeom[1] = GeometryLocation(other, otherIndex, n.onTarget);
+        }
+    };
+
+    if (other->getGeometryTypeId() == GEOS_CLOTHOID) {
+        const PlacedClothoid placedOther(*detail::down_cast<const Clothoid*>(other));
+        record(nearestToClothoid(placed, placedOther), 0);
+        return;
+    }
+    if (other->getGeometryTypeId() == GEOS_CIRCULARSTRING) {
+        for (const auto& arc : detail::down_cast<const CircularString*>(other)->getArcs()) {
+            if (arc.getEnvelope().distance(*env0) > minDistance) {
+                continue;
+            }
+            record(nearestToArc(placed, arc), arc.getCoordinatePosition());
+            if (minDistance <= terminateDistance) {
+                return;
+            }
+        }
+        return;
+    }
+    const CoordinateSequence* seq = other->getCoordinatesRO();
+    for (std::size_t j = 0; j + 1 < seq->size(); j++) {
+        const CoordinateXY& q0 = seq->getAt<CoordinateXY>(j);
+        const CoordinateXY& q1 = seq->getAt<CoordinateXY>(j + 1);
+        if (Envelope(q0, q1).distance(*env0) > minDistance) {
+            continue;
+        }
+        record(nearestToSegment(placed, q0, q1), j);
+        if (minDistance <= terminateDistance) {
+            return;
+        }
+    }
+}
+
+/*private*/
+void
+DistanceOp::computeMinDistance(const Clothoid* clothoid,
+                               const Point* pt,
+                               std::array<GeometryLocation, 2> & locGeom)
+{
+    if (clothoid->getEnvelopeInternal()->distance(*pt->getEnvelopeInternal()) > minDistance) {
+        return;
+    }
+    const CoordinateXY& coord = *pt->getCoordinate();
+    const algorithm::clothoid::PlacedClothoid placed(*clothoid);
+    const algorithm::clothoid::Nearest n = algorithm::clothoid::nearestToPoint(placed, coord);
+    if (n.distance < minDistance) {
+        minDistance = n.distance;
+        locGeom[0] = GeometryLocation(clothoid, 0, n.onCurve);
+        locGeom[1] = GeometryLocation(pt, 0, coord);
     }
 }
 

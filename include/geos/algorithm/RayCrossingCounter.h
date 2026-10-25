@@ -32,6 +32,7 @@ class Coordinate;
 class CoordinateXY;
 class CoordinateSequence;
 class CircularArc;
+class Clothoid;
 class Curve;
 }
 }
@@ -114,6 +115,12 @@ public:
                       const geom::CoordinateXY& p2);
 
     void countArc(const geom::CircularArc& arc);
+
+    /** \brief
+     * Counts a clothoid. A point within its evaluation tolerance of the
+     * clothoid is on it.
+     */
+    void countClothoid(const geom::Clothoid& curve);
 
     /** \brief
      *  Counts all segments or arcs in the sequence
