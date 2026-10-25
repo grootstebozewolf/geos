@@ -719,9 +719,6 @@ void object::test<34>()
     ensure(empty->affineTransform(2.0, 0.0, 1.0, 0.0, 2.0, 1.0)->isEmpty());
     ensure(!empty->isEulerSpiral());
     ensure(!empty->hasRegularPlacement());
-
-    ensure_THROW(curve->affineTransform(std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 1.0, 0.0),
-                 geos::util::IllegalArgumentException);
 }
 
 template<>
@@ -754,6 +751,52 @@ void object::test<35>()
     ensure_equals("y", after.y, before.y + 20.0, 1e-12);
     ensure_equals("z", after.z, before.z, 1e-12);
     ensure_equals("m", after.m, before.m);
+}
+
+template<>
+template<>
+void object::test<36>()
+{
+    set_test_name("Euler spiral test is relative at any scale");
+
+    auto curve = factory_->createClothoid(identityAt(0.0, 0.0), 1.0, 0.0, 2.0, false, false, 0.0, 0.0);
+
+    const double scales[] = {1e-13, 1e-6, 1e6};
+    for (double k : scales) {
+        ensure(curve->affineTransform(k, 0.0, 0.0, 0.0, k, 0.0)->isEulerSpiral());
+        ensure(!curve->affineTransform(2.0 * k, 0.0, 0.0, 0.0, k, 0.0)->isEulerSpiral());
+        ensure(!curve->affineTransform(k, 0.5 * k, 0.0, 0.0, k, 0.0)->isEulerSpiral());
+    }
+}
+
+template<>
+template<>
+void object::test<37>()
+{
+    set_test_name("non-finite affine map");
+
+    auto curve = factory_->createClothoid(identityAt(1.0, 2.0), 1.0, 0.0, 4.0, false, false, 0.0, 0.0);
+    auto empty = factory_->createClothoid(false, false);
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+
+    const Clothoid* curves[] = {curve.get(), empty.get()};
+    const double bads[] = {inf, -inf, nan};
+    for (const Clothoid* c : curves) {
+        for (double bad : bads) {
+            for (int i = 0; i < 6; i++) {
+                double m[] = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0};
+                m[i] = bad;
+                try {
+                    c->affineTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+                    fail("expected IllegalArgumentException");
+                }
+                catch (const geos::util::IllegalArgumentException& e) {
+                    ensure(std::string(e.what()).find("Clothoid affine map must be finite") != std::string::npos);
+                }
+            }
+        }
+    }
 }
 
 } // namespace tut

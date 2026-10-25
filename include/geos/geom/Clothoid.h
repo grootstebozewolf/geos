@@ -45,15 +45,6 @@ struct GEOS_DLL ClothoidReferenceLocation {
  * part of the placement is a similarity (isEulerSpiral()), and a regular
  * curve only while it is invertible (hasRegularPlacement()). A singular
  * placement is accepted, and traces a line or a point.
- *
- * Operations on clothoids split at the placement. A result that depends only
- * on plan topology carries across an invertible affine map applied to all
- * inputs alike: intersection points and noding, point location, and
- * orientation, which flips when the determinant is negative. It may be
- * computed in any such frame, for example one where a clothoid is an Euler
- * spiral, and mapped back. A metric result does not carry across: distance,
- * nearest points, length, buffer, Hausdorff distance and snap rounding are
- * computed on the placed curve itself.
  */
 class GEOS_DLL Clothoid : public SimpleCurve {
 
@@ -121,9 +112,10 @@ public:
 
     /// The image under (x, y) -> (m00 x + m01 y + m02, m10 x + m11 y + m12),
     /// with Z and M unchanged. The map is composed into the reference
-    /// location, so the image is exact rather than linearized.
+    /// location, so the image is exact rather than linearized. Throws
+    /// IllegalArgumentException when a coefficient is not finite.
     std::unique_ptr<Clothoid> affineTransform(double m00, double m01, double m02,
-                                              double m10, double m11, double m12) const;
+            double m10, double m11, double m12) const;
 
     bool hasCurvedComponents() const override;
 

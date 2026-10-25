@@ -501,12 +501,17 @@ Clothoid::isEulerSpiral() const
     if (isEmpty()) {
         return false;
     }
-    Frame plan = frameOf(getReferenceLocation(), m_scale, m_t0, m_t1, m_startM, m_endM);
-    plan.uz = 0.0;
-    plan.vz = 0.0;
-    double scale = 1.0;
-    int orientation = 1;
-    return similarityScale(plan, scale, orientation);
+    // Both tests are relative to |u| and |v|. similarityScale() floors its
+    // tolerance at SIMILARITY_RELATIVE, which would pass any shape at a
+    // placement scale near that floor.
+    const double uLen = std::hypot(m_u.x, m_u.y);
+    const double vLen = std::hypot(m_v.x, m_v.y);
+    if (!(uLen > 0.0) || !(vLen > 0.0)) {
+        return false;
+    }
+    const double dot = m_u.x * m_v.x + m_u.y * m_v.y;
+    const double tol = SIMILARITY_RELATIVE * std::max(uLen, vLen);
+    return std::abs(uLen - vLen) <= tol && std::abs(dot) <= tol * std::min(uLen, vLen);
 }
 
 bool
@@ -525,6 +530,12 @@ std::unique_ptr<Clothoid>
 Clothoid::affineTransform(double m00, double m01, double m02,
                           double m10, double m11, double m12) const
 {
+    const double map[] = {m00, m01, m02, m10, m11, m12};
+    for (double value : map) {
+        if (!std::isfinite(value)) {
+            throw util::IllegalArgumentException("Clothoid affine map must be finite");
+        }
+    }
     if (isEmpty()) {
         return clone();
     }
