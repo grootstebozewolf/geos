@@ -38,6 +38,7 @@
 #include <geos/coverage/CoverageValidator.h>
 #include <geos/geom/CircularString.h>
 #include <geos/geom/Clothoid.h>
+#include <geos/geom/NurbsCurve.h>
 #include <geos/geom/CompoundCurve.h>
 #include <geos/geom/Coordinate.h>
 #include <geos/geom/CoordinateSequence.h>
@@ -487,6 +488,7 @@ static bool
 isCurvedType (geos::geom::GeometryTypeId typ) {
     return typ == geos::geom::GeometryTypeId::GEOS_CIRCULARSTRING ||
         typ == geos::geom::GeometryTypeId::GEOS_CLOTHOID ||
+        typ == geos::geom::GeometryTypeId::GEOS_NURBSCURVE ||
         typ == geos::geom::GeometryTypeId::GEOS_COMPOUNDCURVE ||
         typ == geos::geom::GeometryTypeId::GEOS_CURVEPOLYGON ||
         typ == geos::geom::GeometryTypeId::GEOS_MULTICURVE ||
@@ -3947,6 +3949,17 @@ extern "C" {
             const GeometryFactory* gf = handle->geomFactory;
 
             return gf->createCircularString(false, false).release();
+        });
+    }
+
+    Geometry*
+    GEOSGeom_createEmptyNurbsCurve_r(GEOSContextHandle_t extHandle)
+    {
+        return execute(extHandle, [&]() {
+            GEOSContextHandleInternal_t* handle = reinterpret_cast<GEOSContextHandleInternal_t*>(extHandle);
+            const GeometryFactory* gf = handle->geomFactory;
+
+            return gf->createNurbsCurve(false, false).release();
         });
     }
 

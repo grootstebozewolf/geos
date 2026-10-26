@@ -34,6 +34,7 @@ namespace geom {
 
 class CoordinateSequence;
 class Clothoid;
+class NurbsCurve;
 class CompoundCurve;
 class CurvePolygon;
 class Geometry;
@@ -225,6 +226,7 @@ private:
     // throws IOException
 
     void writeClothoid(const geom::Clothoid& clothoid);
+    void writeNurbsCurve(const geom::NurbsCurve& nurbs);
 
     void writeCompoundCurve(const geom::CompoundCurve& curve);
 
@@ -255,6 +257,8 @@ private:
     // throws IOException
 
     void writeDouble(double value);
+
+    void writeByte(unsigned char value);
 
     OrdinateSet getOutputOrdinates(OrdinateSet ordinates);
 

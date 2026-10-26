@@ -42,6 +42,9 @@ class Coordinate;
 class CircularString;
 struct ClothoidReferenceLocation;
 class Clothoid;
+struct NurbsKnot;
+struct NurbsPoint;
+class NurbsCurve;
 class CompoundCurve;
 class CoordinateSequence;
 class Curve;
@@ -379,6 +382,19 @@ public:
         const CoordinateXYZM& start,
         bool hasZ, bool hasM,
         double theta0, double k0, double k1, double length,
+        double endM = DoubleNotANumber) const;
+
+    /// Construct an empty NURBS curve
+    std::unique_ptr<NurbsCurve> createNurbsCurve(bool hasZ, bool hasM) const;
+
+    /// Construct a NURBS curve from its degree, weighted control points and
+    /// knots. When hasM is set, startM and endM are the measures at the ends.
+    std::unique_ptr<NurbsCurve> createNurbsCurve(
+        int degree,
+        std::vector<NurbsPoint> controlPoints,
+        std::vector<NurbsKnot> knots,
+        bool hasZ, bool hasM,
+        double startM = DoubleNotANumber,
         double endM = DoubleNotANumber) const;
 
     /// Construct an EMPTY CompoundCurve

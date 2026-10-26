@@ -185,10 +185,11 @@ void object::test<6>()
     ensure_equals(result->getArea(), 2.0);
 }
 
-// CIRCLE / GEODESICSTRING / NURBSCURVE / SPIRALCURVE stay named refuses.
-// CLOTHOID is ST_Clothoid (ISO/IEC 13249-3:2016 §4.2.11, §5.1.67). EMPTY
-// is the standard empty form. This parse does not claim the SQL/MM
-// predicate suite for the clothoid. SPIRALCURVE (§4.2.12, §7.9) stays refused.
+// CIRCLE / GEODESICSTRING / SPIRALCURVE stay named refuses.
+// CLOTHOID is ST_Clothoid (ISO/IEC 13249-3:2016 §4.2.11, §5.1.67) and
+// NURBSCURVE is ST_NURBSCurve (§7.7). EMPTY is the standard empty form.
+// This parse does not claim the SQL/MM predicate suite for either.
+// SPIRALCURVE (§4.2.12, §7.9) stays refused.
 template<>
 template<>
 void object::test<7>()
@@ -198,7 +199,6 @@ void object::test<7>()
     const char* wkts[] = {
         "CIRCLE EMPTY",
         "GEODESICSTRING EMPTY",
-        "NURBSCURVE EMPTY",
         "SPIRALCURVE EMPTY",
     };
 
@@ -230,6 +230,10 @@ void object::test<7>()
     auto clothoidZ = read("CLOTHOID Z EMPTY");
     ensure(clothoidZ->isEmpty());
     ensure(clothoidZ->hasZ());
+
+    auto nurbs = read("NURBSCURVE EMPTY");
+    ensure(nurbs->isEmpty());
+    ensure_equals(nurbs->getGeometryTypeId(), GeometryTypeId::GEOS_NURBSCURVE);
 }
 
 } // namespace tut

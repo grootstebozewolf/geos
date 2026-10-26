@@ -105,6 +105,9 @@ PointLocator::computeLocation(const CoordinateXY& p, const Geometry* geom)
             updateLocationInfo(locateOnClothoid(p, static_cast<const Clothoid*>(geom)));
             break;
         }
+        case GEOS_NURBSCURVE:
+            throw util::UnsupportedOperationException(
+                "NURBS point location is not implemented");
         case GEOS_CIRCULARSTRING: {
             const CircularString* cs = static_cast<const CircularString*>(geom);
             updateLocationInfo(locate(p, cs));
@@ -259,6 +262,10 @@ PointLocator::locate(const CoordinateXY& p, const CompoundCurve* cc)
                 return Location::INTERIOR;
             }
             continue;
+        }
+        if (curve->getGeometryTypeId() == GEOS_NURBSCURVE) {
+            throw util::UnsupportedOperationException(
+                "NURBS point location is not implemented");
         }
         if (curve->getGeometryTypeId() == GEOS_CIRCULARSTRING) {
             const CircularString* cs = static_cast<const CircularString*>(curve);

@@ -66,6 +66,9 @@ addCoordinates(geom::util::CurveBuilder& curveBuilder, const SimpleCurve* curve,
     if (curve->getGeometryTypeId() == GEOS_CLOTHOID) {
         throw util::UnsupportedOperationException("Clothoid line merge is not implemented");
     }
+    if (curve->getGeometryTypeId() == GEOS_NURBSCURVE) {
+        throw util::UnsupportedOperationException("NURBS line merge is not implemented");
+    }
 
     const CoordinateSequence& srcCoords = *curve->getCoordinatesRO();
     const bool isCurved = curve->getGeometryTypeId() == GEOS_CIRCULARSTRING;

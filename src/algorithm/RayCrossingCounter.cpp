@@ -27,6 +27,7 @@
 #include <geos/geom/Geometry.h>
 #include <geos/geom/Location.h>
 #include <geos/geom/SimpleCurve.h>
+#include <geos/util/UnsupportedOperationException.h>
 
 using geos::geom::CoordinateXY;
 
@@ -95,6 +96,10 @@ RayCrossingCounter::locatePointInRing(const geom::CoordinateXY& point,
                 return geom::Location::BOUNDARY;
             }
             continue;
+        }
+        if (curve->getGeometryTypeId() == geom::GEOS_NURBSCURVE) {
+            throw util::UnsupportedOperationException(
+                "NURBS point location is not implemented");
         }
         rcc.processSequence(*curve->getCoordinatesRO(), !curve->hasCurvedComponents());
     }
