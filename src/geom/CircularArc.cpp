@@ -15,8 +15,11 @@
 #include <geos/algorithm/Angle.h>
 #include <geos/algorithm/CircularArcs.h>
 #include <geos/algorithm/CurveToLineParams.h>
+#include <geos/algorithm/PointLocation.h>
 #include <geos/geom/CircularArc.h>
 #include <geos/geom/Envelope.h>
+#include <geos/geom/LineSegment.h>
+#include <geos/math/DD.h>
 #include <geos/triangulate/quadedge/TrianglePredicate.h>
 #include <sstream>
 
@@ -217,6 +220,23 @@ CircularArc::containsPoint(const CoordinateXY& q) const
         return true;
     }
 
+    if (isLinear()) {
+        // Collinear control points describe the path p0 -> p1 -> p2.
+        return algorithm::PointLocation::isOnSegment(q, p0(), p1()) ||
+               algorithm::PointLocation::isOnSegment(q, p1(), p2());
+    }
+
+    if (isCircle()) {
+        // p0 and p1 are the ends of a diameter, so q is on the circle exactly
+        // when the angle p0-q-p1 is a right angle (Thales).
+        using math::DD;
+        const DD ax = DD(p0().x) - q.x;
+        const DD ay = DD(p0().y) - q.y;
+        const DD bx = DD(p1().x) - q.x;
+        const DD by = DD(p1().y) - q.y;
+        return (ax*bx + ay*by).isZero();
+    }
+
     //auto dist = std::abs(q.distance(getCenter()) - getRadius());
 
     //if (dist > 1e-8) {
@@ -233,18 +253,72 @@ CircularArc::containsPoint(const CoordinateXY& q) const
 CoordinateXY
 CircularArc::closestPoint(const CoordinateXY &q) const
 {
+    if (containsPoint(q)) {
+        return q;
+    }
+
+    if (isLinear()) {
+        const CoordinateXY c0 = LineSegment::closestPoint(p0(), p1(), q);
+        const CoordinateXY c1 = LineSegment::closestPoint(p1(), p2(), q);
+        return c0.distance(q) <= c1.distance(q) ? c0 : c1;
+    }
+
     return CircularArcs::closestPointArcPoint(getCenter(), getRadius(), p0(), p2(), isCCW(), q);
 }
 
 std::array<CoordinateXY, 2>
 CircularArc::closestPoints(const CoordinateXY& q0, const CoordinateXY& q1) const
 {
+    // Shared and touching vertices are detected with exact predicates, so
+    // that a zero distance is reported as exactly zero.
+    for (const CoordinateXY* q : {&q0, &q1}) {
+        if (containsPoint(*q)) {
+            return {*q, *q};
+        }
+    }
+    for (const CoordinateXY* p : {&p0(), &p1(), &p2()}) {
+        if (algorithm::PointLocation::isOnSegment(*p, q0, q1)) {
+            return {*p, *p};
+        }
+    }
+
+    if (isLinear()) {
+        const auto pts0 = LineSegment::closestPoints(p0(), p1(), q0, q1);
+        const auto pts1 = LineSegment::closestPoints(p1(), p2(), q0, q1);
+        return pts0[0].distance(pts0[1]) <= pts1[0].distance(pts1[1]) ? pts0 : pts1;
+    }
+
     return CircularArcs::closestPointsArcSegment(getCenter(), getRadius(), p0(), p2(), isCCW(), q0, q1);
 }
 
 std::array<CoordinateXY, 2>
 CircularArc::closestPoints(const CircularArc &other) const
 {
+    for (const CoordinateXY* q : {&other.p0(), &other.p1(), &other.p2()}) {
+        if (containsPoint(*q)) {
+            return {*q, *q};
+        }
+    }
+    for (const CoordinateXY* p : {&p0(), &p1(), &p2()}) {
+        if (other.containsPoint(*p)) {
+            return {*p, *p};
+        }
+    }
+
+    if (isLinear()) {
+        auto pts0 = other.closestPoints(p0(), p1());
+        auto pts1 = other.closestPoints(p1(), p2());
+        auto& pts = pts0[0].distance(pts0[1]) <= pts1[0].distance(pts1[1]) ? pts0 : pts1;
+        std::swap(pts[0], pts[1]);
+        return pts;
+    }
+
+    if (other.isLinear()) {
+        const auto pts0 = closestPoints(other.p0(), other.p1());
+        const auto pts1 = closestPoints(other.p1(), other.p2());
+        return pts0[0].distance(pts0[1]) <= pts1[0].distance(pts1[1]) ? pts0 : pts1;
+    }
+
     return CircularArcs::closestPointsArcArc(getCenter(), getRadius(), p0(), p2(), isCCW(),
         other.getCenter(), other.getRadius(), other.p0(), other.p2(), other.isCCW());
 }
@@ -252,21 +326,21 @@ CircularArc::closestPoints(const CircularArc &other) const
 double
 CircularArc::distance(const CoordinateXY &q) const
 {
-    return CircularArcs::distanceArcPoint(getCenter(), getRadius(), p0(), p2(), isCCW(), q);
+    return closestPoint(q).distance(q);
 }
 
 double
 CircularArc::distance(const CoordinateXY& q0, const CoordinateXY& q1) const
 {
-    return CircularArcs::distanceArcSegment(getCenter(), getRadius(), p0(), p2(), isCCW(), q0, q1);
+    const auto pts = closestPoints(q0, q1);
+    return pts[0].distance(pts[1]);
 }
 
 double
 CircularArc::distance(const CircularArc &other) const
 {
-    return CircularArcs::distanceArcArc(
-        getCenter(), getRadius(), p0(), p2(), isCCW(),
-        other.getCenter(), other.getRadius(), other.p0(), other.p2(), other.isCCW());
+    const auto pts = closestPoints(other);
+    return pts[0].distance(pts[1]);
 }
 
 

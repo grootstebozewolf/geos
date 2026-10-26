@@ -22,6 +22,7 @@
 #include <geos/geom/GeometryFactory.h>
 #include <geos/operation/distance/FacetSequenceTreeBuilder.h>
 #include <geos/geom/LineSegment.h>
+#include <geos/util.h>
 
 using namespace geos::geom;
 using namespace geos::operation::distance;
@@ -30,7 +31,10 @@ using namespace geos::index::strtree;
 namespace geos {
 namespace precision {
 
-MinimumClearance::MinimumClearance(const Geometry* g) : inputGeom(g) {}
+MinimumClearance::MinimumClearance(const Geometry* g) : inputGeom(g)
+{
+    util::ensureNoCurvedComponents(g);
+}
 
 double
 MinimumClearance::getDistance()

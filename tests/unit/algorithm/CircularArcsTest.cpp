@@ -1002,5 +1002,87 @@ void object::test<72>()
     ensure_equals(a.distance(b), 0);
     ensure_equals(b.distance(a), 0);
 }
+template<>
+template<>
+void object::test<73>()
+{
+    set_test_name("arc-seg distance, segment inside circle, closest to arc endpoint");
+
+    // The segment lies inside the circle and does not reach the arc, so the
+    // closest pair joins the arc endpoint at 70 degrees to the segment interior.
+    const double r = 10;
+    CircularArc arc = CircularArc::create(XY{r*std::cos(MATH_PI/3), r*std::sin(MATH_PI/3)},
+                                          XY{r*std::cos(13*MATH_PI/36), r*std::sin(13*MATH_PI/36)},
+                                          XY{r*std::cos(7*MATH_PI/18), r*std::sin(7*MATH_PI/18)});
+    XY q0{2, 0};
+    XY q1{2, 9.5};
+
+    ensure_equals("distance", arc.distance(q0, q1), arc.p2().x - 2, 1e-12);
+}
+
+template<>
+template<>
+void object::test<74>()
+{
+    set_test_name("arc-seg distance, segment outside circle, closest to segment endpoint");
+
+    // Previously reported as 5.47 because the candidate pair joining a segment
+    // endpoint to the arc interior was not considered.
+    CircularArc arc = CircularArc::create(XY{-3.48172, 2.91175}, XY{9.45735, -6.02278}, XY{1.44247, -0.448891});
+    XY q0{4.48559, 4.09741};
+    XY q1{-5.45188, -9.20177};
+
+    ensure_equals("distance", arc.distance(q0, q1), 0.2835665009749685, 1e-9);
+
+    const auto pts = arc.closestPoints(q0, q1);
+    ensure("first point is on the arc", std::abs(pts[0].distance(arc.getCenter()) - arc.getRadius()) < 1e-9);
+    ensure_equals("closest points distance", pts[0].distance(pts[1]), 0.2835665009749685, 1e-9);
+}
+
+template<>
+template<>
+void object::test<75>()
+{
+    set_test_name("containsPoint: full circle");
+
+    // p0 == p2, so p1 is the far end of a diameter: center (0, 0), r^2 = 10.
+    CircularArc circle = CircularArc::create(XY{1, -3}, XY{-1, 3}, XY{1, -3});
+
+    ensure(circle.containsPoint(XY{3, 1}));
+    ensure(circle.containsPoint(XY{-3, -1}));
+    ensure_not(circle.containsPoint(XY{1, 0}));
+    ensure_not(circle.containsPoint(XY{0, 0}));
+    ensure_equals("distance", circle.distance(XY{1, 0}), std::sqrt(10) - 1, 1e-12);
+}
+
+template<>
+template<>
+void object::test<76>()
+{
+    set_test_name("containsPoint and distance: collinear control points");
+
+    // The path runs p0 -> p1 -> p2 and doubles back along the line x + y = 2.
+    CircularArc arc = CircularArc::create(XY{3, -1}, XY{-1, 3}, XY{2, 0});
+
+    ensure(arc.containsPoint(XY{1, 1}));
+    ensure_not(arc.containsPoint(XY{-2, 4}));
+    ensure_equals(arc.distance(XY{1, 1}, XY{-3, -3}), 0);
+    ensure_equals("distance", arc.distance(XY{-2, 4}), std::sqrt(2), 1e-12);
+}
+
+template<>
+template<>
+void object::test<77>()
+{
+    set_test_name("distance: control point of one arc on the other arc");
+
+    // (3, -3) is the first endpoint of a and the middle control point of b.
+    CircularArc a = CircularArc::create(XY{3, -3}, XY{-2, -1}, XY{-3, -3});
+    CircularArc b = CircularArc::create(XY{2, 0}, XY{3, -3}, XY{-2, 0});
+
+    ensure_equals(a.distance(b), 0);
+    ensure_equals(b.distance(a), 0);
+}
+
 
 }

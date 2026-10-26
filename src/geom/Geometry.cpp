@@ -39,7 +39,7 @@
 #include <geos/algorithm/InteriorPointLine.h>
 #include <geos/algorithm/InteriorPointArea.h>
 #include <geos/algorithm/ConvexHull.h>
-#include <geos/algorithm/locate/SimplePointInAreaLocator.h>
+#include <geos/algorithm/PointLocator.h>
 #include <geos/geom/prep/PreparedGeometryFactory.h>
 #include <geos/operation/intersection/Rectangle.h>
 #include <geos/operation/intersection/RectangleIntersection.h>
@@ -317,6 +317,28 @@ Geometry::intersects(const Geometry* g) const
      * pt(B) in env(A)?
      */
 
+    if (hasCurvedComponents() || g->hasCurvedComponents()) {
+        // Test points with the exact point-on-arc predicate used by PointLocator,
+        // so the result agrees with point location and overlay.
+        if (isPuntal() || g->isPuntal()) {
+            const Geometry& puntal = isPuntal() ? *this : *g;
+            const Geometry& other = isPuntal() ? *g : *this;
+
+            algorithm::PointLocator locator;
+            const auto pts = puntal.getCoordinates();
+            for (std::size_t i = 0; i < pts->size(); i++) {
+                if (locator.intersects(pts->getAt<CoordinateXY>(i), &other)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Two geometries intersect exactly when the distance between them
+        // is zero. DistanceOp evaluates arcs directly, without linearizing.
+        return DistanceOp::isWithinDistance(*this, *g, 0.0);
+    }
+
     // optimization for rectangle arguments
     if(isRectangle()) {
         const Polygon* p = detail::down_cast<const Polygon*>(this);
@@ -325,15 +347,6 @@ Geometry::intersects(const Geometry* g) const
     if(g->isRectangle()) {
         const Polygon* p = detail::down_cast<const Polygon*>(g);
         return predicate::RectangleIntersects::intersects(*p, *this);
-    }
-
-    if (hasCurvedComponents() || g->hasCurvedComponents()) {
-        if (isDimensionStrict(Dimension::A) && g->getDimension() == Dimension::P) {
-            return locate::SimplePointInAreaLocator::isAnyPointContained(*g, *this);
-        }
-        if (g->isDimensionStrict(Dimension::A) && getDimension() == Dimension::P) {
-            return locate::SimplePointInAreaLocator::isAnyPointContained(*this, *g);
-        }
     }
 
 #if USE_RELATENG

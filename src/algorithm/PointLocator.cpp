@@ -27,6 +27,7 @@
 #include <geos/geom/LinearRing.h>
 #include <geos/geom/MultiLineString.h>
 #include <geos/geom/Polygon.h>
+#include <geos/geom/Surface.h>
 #include <geos/geom/MultiPolygon.h>
 #include <geos/geom/Location.h>
 #include <geos/geomgraph/GeometryGraph.h>
@@ -108,8 +109,9 @@ PointLocator::computeLocation(const CoordinateXY& p, const Geometry* geom)
             updateLocationInfo(locate(p, cc));
             break;
         }
-        case GEOS_POLYGON: {
-            const Polygon* po = static_cast<const Polygon*>(geom);
+        case GEOS_POLYGON:
+        case GEOS_CURVEPOLYGON: {
+            const Surface* po = static_cast<const Surface*>(geom);
             updateLocationInfo(locate(p, po));
             break;
         }
@@ -136,6 +138,8 @@ PointLocator::computeLocation(const CoordinateXY& p, const Geometry* geom)
             }
             break;
         }
+        case GEOS_MULTICURVE:
+        case GEOS_MULTISURFACE:
         case GEOS_GEOMETRYCOLLECTION: {
             const GeometryCollection* col = static_cast<const GeometryCollection*>(geom);
             for(const auto & g2 : *col) {
@@ -202,7 +206,7 @@ PointLocator::locate(const CoordinateXY& p, const CircularString* cs)
         return Location::EXTERIOR;
     }
 
-    if (cs->isClosed()) {
+    if (!cs->isClosed()) {
         const CoordinateSequence* seq = cs->getCoordinatesRO();
         if (p.equals2D(seq->front<CoordinateXY>())) {
             return Location::BOUNDARY;
@@ -229,7 +233,7 @@ PointLocator::locate(const CoordinateXY& p, const CompoundCurve* cc)
         return Location::EXTERIOR;
     }
 
-    if (cc->isClosed()) {
+    if (!cc->isClosed()) {
         const SimpleCurve* firstCurve = cc->getCurveN(0);
         if (p.equals2D(firstCurve->getCoordinatesRO()->front<CoordinateXY>())) {
             return Location::BOUNDARY;

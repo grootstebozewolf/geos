@@ -19,7 +19,9 @@
 #include <geos/geom/CoordinateSequence.h>
 #include <geos/geom/Geometry.h>
 #include <geos/geom/LineSegment.h>
+#include <geos/algorithm/CircularArcs.h>
 #include <geos/algorithm/Distance.h>
+#include <geos/geom/CircularArc.h>
 #include <geos/operation/distance/FacetSequence.h>
 
 #include <memory>
@@ -29,10 +31,11 @@ using namespace geos::operation::distance;
 using namespace geos::algorithm;
 
 
-FacetSequence::FacetSequence(const CoordinateSequence* p_pts, std::size_t p_start, std::size_t p_end)
+FacetSequence::FacetSequence(const CoordinateSequence* p_pts, std::size_t p_start, std::size_t p_end, bool p_arcs)
     : pts(p_pts)
     , start(p_start)
     , end(p_end)
+    , arcs(p_arcs)
 {
     computeEnvelope();
 }
@@ -52,6 +55,10 @@ FacetSequence::isPoint() const
 double
 FacetSequence::distance(const FacetSequence& facetSeq) const
 {
+    if (arcs || facetSeq.arcs) {
+        return computeDistanceWithArcs(facetSeq, nullptr);
+    }
+
     bool isPointThis = isPoint();
     bool isPointOther = facetSeq.isPoint();
 
@@ -81,9 +88,14 @@ FacetSequence::distance(const FacetSequence& facetSeq) const
 std::vector<Coordinate>
 FacetSequence::nearestLocations(const FacetSequence& facetSeq)  const
 {
+    std::vector<Coordinate> locs;
+    if (arcs || facetSeq.arcs) {
+        computeDistanceWithArcs(facetSeq, &locs);
+        return locs;
+    }
+
     bool isPointThis = isPoint();
     bool isPointOther = facetSeq.isPoint();
-    std::vector<Coordinate> locs;
     if (isPointThis && isPointOther) {
         const Coordinate& pt = pts->getAt(start);
         const Coordinate& seqPt = facetSeq.pts->getAt(facetSeq.start);
@@ -209,10 +221,114 @@ FacetSequence::updateNearestLocationsLineLine(
     locs->push_back(closestPts[1]);
 }
 
+/*
+* The facets of a sequence are its point (if it has a single coordinate),
+* its segments, or its arcs.
+*/
+std::size_t
+FacetSequence::numElements() const
+{
+    if (isPoint()) {
+        return 1;
+    }
+    return arcs ? (end - start - 1) / 2 : end - start - 1;
+}
+
+Envelope
+FacetSequence::elementEnvelope(std::size_t i) const
+{
+    Envelope e;
+    if (isPoint()) {
+        e.expandToInclude(pts->getAt<CoordinateXY>(start));
+    }
+    else if (arcs) {
+        const std::size_t k = start + 2*i;
+        CircularArcs::expandEnvelope(e, pts->getAt<CoordinateXY>(k),
+                                     pts->getAt<CoordinateXY>(k + 1),
+                                     pts->getAt<CoordinateXY>(k + 2));
+    }
+    else {
+        e.expandToInclude(pts->getAt<CoordinateXY>(start + i));
+        e.expandToInclude(pts->getAt<CoordinateXY>(start + i + 1));
+    }
+    return e;
+}
+
+std::array<CoordinateXY, 2>
+FacetSequence::closestPoints(std::size_t i, const FacetSequence& facetSeq, std::size_t j) const
+{
+    if (isPoint()) {
+        const CoordinateXY& p = pts->getAt<CoordinateXY>(start);
+        if (facetSeq.isPoint()) {
+            return {p, facetSeq.pts->getAt<CoordinateXY>(facetSeq.start)};
+        }
+        if (facetSeq.arcs) {
+            return {p, CircularArc(*facetSeq.pts, facetSeq.start + 2*j).closestPoint(p)};
+        }
+        return {p, LineSegment::closestPoint(facetSeq.pts->getAt<CoordinateXY>(facetSeq.start + j),
+                                             facetSeq.pts->getAt<CoordinateXY>(facetSeq.start + j + 1), p)};
+    }
+
+    if (facetSeq.isPoint() || !arcs) {
+        auto pts2 = facetSeq.closestPoints(j, *this, i);
+        return {pts2[1], pts2[0]};
+    }
+
+    const CircularArc arc(*pts, start + 2*i);
+    if (facetSeq.arcs) {
+        return arc.closestPoints(CircularArc(*facetSeq.pts, facetSeq.start + 2*j));
+    }
+    return arc.closestPoints(facetSeq.pts->getAt<CoordinateXY>(facetSeq.start + j),
+                             facetSeq.pts->getAt<CoordinateXY>(facetSeq.start + j + 1));
+}
+
+double
+FacetSequence::computeDistanceWithArcs(const FacetSequence& facetSeq, std::vector<Coordinate>* locs) const
+{
+    double minDistance = DoubleInfinity;
+
+    for (std::size_t i = 0; i < numElements(); i++) {
+        const Envelope pEnv = elementEnvelope(i);
+        if (pEnv.distanceSquared(*facetSeq.getEnvelope()) > minDistance*minDistance) {
+            continue;
+        }
+
+        for (std::size_t j = 0; j < facetSeq.numElements(); j++) {
+            if (pEnv.distanceSquared(facetSeq.elementEnvelope(j)) > minDistance*minDistance) {
+                continue;
+            }
+
+            const auto closestPts = closestPoints(i, facetSeq, j);
+            const double dist = closestPts[0].distance(closestPts[1]);
+            if (dist < minDistance || (locs != nullptr && locs->empty())) {
+                minDistance = dist;
+                if (locs != nullptr) {
+                    locs->clear();
+                    locs->emplace_back(closestPts[0]);
+                    locs->emplace_back(closestPts[1]);
+                }
+                if (minDistance <= 0.0) {
+                    return minDistance;
+                }
+            }
+        }
+    }
+
+    return minDistance;
+}
+
 void
 FacetSequence::computeEnvelope()
 {
     env = Envelope();
+    if (arcs) {
+        for (std::size_t i = start; i + 2 < end; i += 2) {
+            CircularArcs::expandEnvelope(env, pts->getAt<CoordinateXY>(i),
+                                         pts->getAt<CoordinateXY>(i + 1),
+                                         pts->getAt<CoordinateXY>(i + 2));
+        }
+        return;
+    }
     for(std::size_t i = start; i < end; i++) {
         env.expandToInclude(pts->getAt(i));
     }
@@ -253,6 +369,22 @@ FacetSequence::nearestLocation(const CoordinateXY& p) const
 CoordinateSequenceLocation
 FacetSequence::nearestLocationOnLine(const CoordinateXY& pt) const
 {
+    if (arcs) {
+        double minDistance = DoubleInfinity;
+        std::size_t index = start;
+        CoordinateXY nearestPt;
+        for (std::size_t i = start; i + 2 < end; i += 2) {
+            const CoordinateXY p = CircularArc(*pts, i).closestPoint(pt);
+            const double dist = p.distance(pt);
+            if (dist < minDistance) {
+                minDistance = dist;
+                nearestPt = p;
+                index = i;
+            }
+        }
+        return CoordinateSequenceLocation(pts, index, Coordinate(nearestPt));
+    }
+
     double minDistance = DoubleInfinity;
     std::size_t index = start;
     Coordinate nearestPt;

@@ -241,5 +241,33 @@ void object::test<11>()
     ensure(GEOSGeomTypeId(result_) != GEOS_POLYGON);
 }
 
+template<>
+template<>
+void object::test<12>()
+{
+    set_test_name("segment endpoint exactly on an arc interior");
+
+    geom1_ = fromWKT("CIRCULARSTRING (-3 3, 0 1, -3 0)");
+    geom2_ = fromWKT("LINESTRING (0 2, 3 -1)");
+
+    result_ = GEOSIntersection(geom1_, geom2_);
+    ensure(result_);
+    ensure_geometry_equals(result_, "POINT (0 2)");
+}
+
+template<>
+template<>
+void object::test<13>()
+{
+    set_test_name("MultiCurve and Point");
+
+    geom1_ = fromWKT("MULTICURVE (CIRCULARSTRING (0 0, 1 1, 2 0), (2 0, 4 0))");
+    geom2_ = fromWKT("POINT (1 1)");
+
+    result_ = GEOSIntersection(geom1_, geom2_);
+    ensure(result_);
+    ensure_geometry_equals(result_, "POINT (1 1)");
+}
+
 } // namespace tut
 

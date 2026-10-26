@@ -156,9 +156,9 @@ void object::test<3>()
     ensure_THROW(cc_->coveredBy(cc_.get()), geos::util::UnsupportedOperationException);
     ensure_THROW(cc_->covers(cc_.get()), geos::util::UnsupportedOperationException);
     ensure_THROW(cc_->crosses(cc_.get()), geos::util::UnsupportedOperationException);
-    ensure_THROW(cc_->disjoint(cc_.get()), geos::util::UnsupportedOperationException);
+    ensure_not("disjoint", cc_->disjoint(cc_.get()));
     ensure_THROW(cc_->equals(cc_.get()), geos::util::UnsupportedOperationException);
-    ensure_THROW(cc_->intersects(cc_.get()), geos::util::UnsupportedOperationException);
+    ensure("intersects", cc_->intersects(cc_.get()));
     ensure_THROW(cc_->overlaps(cc_.get()), geos::util::UnsupportedOperationException);
     ensure_THROW(cc_->relate(cc_.get()), geos::util::UnsupportedOperationException);
     ensure_THROW(cc_->touches(cc_.get()), geos::util::UnsupportedOperationException);

@@ -129,5 +129,67 @@ void object::test<6>
                        "GEOMETRYCOLLECTION (MULTIPOLYGON (((-1 -1, 1 -1, 1 1, -1 1, -1 -1))))");
 }
 
+// 7 - Endpoints of an open CircularString are its boundary
+template<>
+template<>
+void object::test<7>
+()
+{
+    runPtLocator(Location::BOUNDARY, Coordinate(-1, 0), "CIRCULARSTRING (-1 0, 0 1, 1 0)");
+    runPtLocator(Location::BOUNDARY, Coordinate(1, 0), "CIRCULARSTRING (-1 0, 0 1, 1 0)");
+    runPtLocator(Location::INTERIOR, Coordinate(0, 1), "CIRCULARSTRING (-1 0, 0 1, 1 0)");
+    runPtLocator(Location::EXTERIOR, Coordinate(0, 0), "CIRCULARSTRING (-1 0, 0 1, 1 0)");
+}
+
+// 8 - A closed CircularString has no boundary
+template<>
+template<>
+void object::test<8>
+()
+{
+    runPtLocator(Location::INTERIOR, Coordinate(-1, 0), "CIRCULARSTRING (-1 0, 0 1, 1 0, 0 -1, -1 0)");
+    runPtLocator(Location::EXTERIOR, Coordinate(0, 0), "CIRCULARSTRING (-1 0, 0 1, 1 0, 0 -1, -1 0)");
+}
+
+// 9 - Endpoints of an open CompoundCurve are its boundary; a closed one has none
+template<>
+template<>
+void object::test<9>
+()
+{
+    runPtLocator(Location::BOUNDARY, Coordinate(-1, 0), "COMPOUNDCURVE (CIRCULARSTRING (-1 0, 0 1, 1 0), (1 0, 2 0))");
+    runPtLocator(Location::BOUNDARY, Coordinate(2, 0), "COMPOUNDCURVE (CIRCULARSTRING (-1 0, 0 1, 1 0), (1 0, 2 0))");
+    runPtLocator(Location::INTERIOR, Coordinate(1, 0), "COMPOUNDCURVE (CIRCULARSTRING (-1 0, 0 1, 1 0), (1 0, 2 0))");
+    runPtLocator(Location::INTERIOR, Coordinate(-1, 0), "COMPOUNDCURVE (CIRCULARSTRING (-1 0, 0 1, 1 0), (1 0, -1 0))");
+}
+
+// 10 - MultiCurve follows the mod-2 boundary rule
+template<>
+template<>
+void object::test<10>
+()
+{
+    const std::string wkt = "MULTICURVE (CIRCULARSTRING (-1 0, 0 1, 1 0), (1 0, 2 0))";
+    runPtLocator(Location::INTERIOR, Coordinate(1, 0), wkt);
+    runPtLocator(Location::BOUNDARY, Coordinate(2, 0), wkt);
+    runPtLocator(Location::INTERIOR, Coordinate(0, 1), wkt);
+    runPtLocator(Location::EXTERIOR, Coordinate(0, 0), wkt);
+}
+
+// 11 - MultiSurface and CurvePolygon elements of a collection
+template<>
+template<>
+void object::test<11>
+()
+{
+    const std::string ms = "MULTISURFACE (CURVEPOLYGON (CIRCULARSTRING (-1 0, 0 1, 1 0, 0 -1, -1 0)), ((5 5, 6 5, 6 6, 5 5)))";
+    runPtLocator(Location::INTERIOR, Coordinate(0, 0.9), ms);
+    runPtLocator(Location::BOUNDARY, Coordinate(0, 1), ms);
+    runPtLocator(Location::EXTERIOR, Coordinate(0.9, 0.9), ms);
+
+    runPtLocator(Location::INTERIOR, Coordinate(0, 0.5),
+                 "GEOMETRYCOLLECTION (CURVEPOLYGON (COMPOUNDCURVE (CIRCULARSTRING (-1 0, 0 1, 1 0), (1 0, -1 0))), POINT (5 5))");
+}
+
 } // namespace tut
 

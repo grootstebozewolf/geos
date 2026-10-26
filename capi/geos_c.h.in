@@ -4082,7 +4082,7 @@ extern int GEOS_DLL GEOSGeomGetLength(
 * Calculate the distance between two geometries.
 * Distance is calculated in the XY plane; Z and M values are ignored.
 *
-* @INPUT_CURVES_CONVERTED_TO_LINES@
+* @INPUT_CURVES_SUPPORTED@
 *
 * \param[in] g1 Input geometry
 * \param[in] g2 Input geometry
@@ -4101,7 +4101,7 @@ extern int GEOS_DLL GEOSDistance(
 * within the given dist.
 * Distance is calculated in the XY plane; Z and M values are ignored.
 *
-* @INPUT_CURVES_CONVERTED_TO_LINES@
+* @INPUT_CURVES_SUPPORTED@
 *
 * \param g1 Input geometry
 * \param g2 Input geometry
@@ -4121,7 +4121,7 @@ extern char GEOS_DLL GEOSDistanceWithin(
 * internally, then calculates the distance. Useful when one
 * or both geometries is very large.
 *
-* @INPUT_CURVES_CONVERTED_TO_LINES@
+* @INPUT_CURVES_SUPPORTED@
 *
 * \param[in] g1 Input geometry
 * \param[in] g2 Input geometry
@@ -4141,7 +4141,7 @@ extern int GEOS_DLL GEOSDistanceIndexed(
 * The first point comes from g1 geometry and the second point comes from g2.
 * Returned points will not have Z or M values.
 *
-* @INPUT_CURVES_CONVERTED_TO_LINES@
+* @INPUT_CURVES_SUPPORTED@
 *
 * \param[in] g1 Input geometry
 * \param[in] g2 Input geometry
@@ -6419,6 +6419,9 @@ extern int GEOS_DLL GEOSLineToCurveParams_setMaxAngleDifferenceDegrees(
 
 /**
 * Tests if two geometries have no point in common.
+*
+* @INPUT_CURVES_SUPPORTED@
+*
 * \param g1 Input geometry
 * \param g2 Input geometry
 * \returns 1 on true, 0 on false, 2 on exception
@@ -6440,6 +6443,9 @@ extern char GEOS_DLL GEOSTouches(const GEOSGeometry* g1, const GEOSGeometry* g2)
 
 /**
 * Tests if two geometries intersect.
+*
+* @INPUT_CURVES_SUPPORTED@
+*
 * \param g1 Input geometry
 * \param g2 Input geometry
 * \returns 1 on true, 0 on false, 2 on exception

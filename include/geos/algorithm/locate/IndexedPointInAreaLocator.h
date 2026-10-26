@@ -46,7 +46,9 @@ namespace locate { // geos::algorithm::locate
  * The Location is computed precisely, in that points located on the geometry boundary
  * or segments will return [geom::Location::BOUNDARY](@ref geom::Location).
  *
- * Polygonal and [LinearRing](@ref geom::LinearRing) geometries are supported.
+ * Polygonal and [LinearRing](@ref geom::LinearRing) geometries are supported,
+ * including CurvePolygon and MultiSurface geometries whose rings contain
+ * circular arcs. Arcs are indexed and tested exactly, without linearization.
  *
  * The index is lazy-loaded, which allows creating instances even if they are not used.
  *
@@ -82,13 +84,20 @@ private:
         std::size_t m_p0;
     };
 
+    struct ArcView {
+        const geom::CoordinateSequence* seq;
+        std::size_t pos;
+    };
+
     class IntervalIndexedGeometry {
     private:
 
         index::strtree::TemplateSTRtree<SegmentView, index::strtree::IntervalTraits> index;
+        index::strtree::TemplateSTRtree<ArcView, index::strtree::IntervalTraits> arcIndex;
 
         void init(const geom::Geometry& g);
         void addLine(const geom::CoordinateSequence* pts);
+        void addArcs(const geom::CoordinateSequence* pts);
 
     public:
         IntervalIndexedGeometry(const geom::Geometry& g);
@@ -96,6 +105,11 @@ private:
         template<typename Visitor>
         void query(double min, double max, Visitor&& f) {
             index.query(index::strtree::Interval(min, max), f);
+        }
+
+        template<typename Visitor>
+        void queryArcs(double min, double max, Visitor&& f) {
+            arcIndex.query(index::strtree::Interval(min, max), f);
         }
     };
 

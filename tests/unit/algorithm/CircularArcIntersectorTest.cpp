@@ -1929,6 +1929,21 @@ void object::test<97>()
                       XY{5, 0});
 }
 
+template<>
+template<>
+void object::test<98>()
+{
+    set_test_name("segment endpoint lies exactly on arc interior");
+    setTolerance(0);
+    setToleranceIsDistance(false);
+
+    // The circle has center (-11/6, 3/2) and passes exactly through (0, 2).
+    checkIntersectionArcSeg(XY{-3, 3}, XY{0, 1}, XY{-3, 0},
+                            XY{0, 2}, XY{3, -1},
+                            CircularArcIntersector::ONE_POINT_INTERSECTION,
+                            XY{0, 2});
+}
+
 // TODO: check Z values of arc result centerpoints
 // TODO: add tests for seg/seg
 

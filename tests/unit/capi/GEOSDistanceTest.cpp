@@ -200,5 +200,21 @@ void object::test<7>()
     ensure_equals(dist, 5.0);
 }
 
+template<>
+template<>
+void object::test<8>()
+{
+    set_test_name("indexed distance with curved inputs");
+
+    geom1_ = fromWKT("MULTICURVE (CIRCULARSTRING (0 0, 1 1, 2 0), COMPOUNDCURVE (CIRCULARSTRING (10 0, 11 1, 12 0), (12 0, 13 0)))");
+    geom2_ = fromWKT("LINESTRING (1 2, 2 2)");
+
+    double dist, distIndexed;
+    ensure_equals(GEOSDistance(geom1_, geom2_, &dist), 1);
+    ensure_equals(GEOSDistanceIndexed(geom1_, geom2_, &distIndexed), 1);
+    ensure_equals(dist, 1.0);
+    ensure_equals(distIndexed, 1.0);
+}
+
 } // namespace tut
 

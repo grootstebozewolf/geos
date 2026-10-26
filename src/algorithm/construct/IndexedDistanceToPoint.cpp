@@ -19,6 +19,7 @@
 
 #include <geos/algorithm/construct/IndexedDistanceToPoint.h>
 #include <geos/geom/Location.h>
+#include <geos/util.h>
 
 //using namespace geos::geom;
 using geos::geom::Location;
@@ -30,6 +31,7 @@ namespace construct { // geos.algorithm.construct
 IndexedDistanceToPoint::IndexedDistanceToPoint(const Geometry& geom)
     : targetGeometry(geom)
 {
+    util::ensureNoCurvedComponents(geom);
 }
 
 /* private */
