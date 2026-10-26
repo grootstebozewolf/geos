@@ -31,7 +31,9 @@ namespace construct { // geos.algorithm.construct
 IndexedDistanceToPoint::IndexedDistanceToPoint(const Geometry& geom)
     : targetGeometry(geom)
 {
-    util::ensureNoCurvedComponents(geom);
+    if (!geom.isEmpty()) {
+        util::ensureNoCurvedTypes(geom);
+    }
 }
 
 /* private */

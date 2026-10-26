@@ -33,7 +33,9 @@ namespace precision {
 
 MinimumClearance::MinimumClearance(const Geometry* g) : inputGeom(g)
 {
-    util::ensureNoCurvedComponents(g);
+    if (!g->isEmpty()) {
+        util::ensureNoCurvedTypes(g);
+    }
 }
 
 double

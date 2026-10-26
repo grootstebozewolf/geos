@@ -30,6 +30,7 @@
 #include <geos/geom/MultiPolygon.h>
 #include <geos/algorithm/locate/IndexedPointInAreaLocator.h>
 #include <geos/operation/distance/IndexedFacetDistance.h>
+#include <geos/util.h>
 #include <geos/util/Interrupt.h>
 
 #include <typeinfo> // for dynamic_cast
@@ -53,6 +54,8 @@ MaximumInscribedCircle::MaximumInscribedCircle(const Geometry* polygonal, double
     , factory(polygonal->getFactory())
     , done(false)
 {
+    util::ensureNoCurvedComponents(polygonal);
+
     if (!(typeid(*polygonal) == typeid(Polygon) ||
           typeid(*polygonal) == typeid(MultiPolygon))) {
         throw util::IllegalArgumentException("Input must be a Polygon or MultiPolygon");

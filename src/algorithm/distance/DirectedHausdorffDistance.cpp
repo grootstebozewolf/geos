@@ -383,7 +383,9 @@ DirectedHausdorffDistance::DirectedHausdorffDistance(const Geometry& geom)
     : target(geom)
     , targetDistance(std::make_unique<TargetDistance>(geom))
 {
-    util::ensureNoCurvedComponents(geom);
+    if (!geom.isEmpty()) {
+        util::ensureNoCurvedTypes(geom);
+    }
 }
 
 DirectedHausdorffDistance::~DirectedHausdorffDistance() = default;
@@ -429,14 +431,13 @@ std::optional<DirectedHausdorffDistance::PointPair>
 DirectedHausdorffDistance::computeDistancePoints(
     const Geometry& geom, double tolerance, double maxDistanceLimit) const
 {
-    util::ensureNoCurvedComponents(geom);
-
     if (tolerance < 0.0) {
         throw util::IllegalArgumentException("Tolerance must be non-negative");
     }
     if (geom.isEmpty() || target.isEmpty()) {
         return std::nullopt;
     }
+    util::ensureNoCurvedTypes(geom);
     if (geom.getDimension() == Dimension::P) {
         return computeForPoints(geom, maxDistanceLimit);
     }

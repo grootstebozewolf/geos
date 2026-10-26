@@ -56,8 +56,8 @@ LargestEmptyCircle::LargestEmptyCircle(const Geometry* p_obstacles, const Geomet
     if (obstacles->isEmpty()) {
         throw util::IllegalArgumentException("Empty obstacles geometry is not supported");
     }
-    if (p_boundary) {
-        util::ensureNoCurvedComponents(p_boundary);
+    if (p_boundary && !p_boundary->isEmpty()) {
+        util::ensureNoCurvedTypes(p_boundary);
     }
     if (! p_boundary || p_boundary->isEmpty()) {
         boundary = obstacles->convexHull();
