@@ -14,9 +14,11 @@
  **********************************************************************/
 
 
+#include <algorithm/ClothoidGeometry.h>
 #include <geos/algorithm/locate/IndexedPointInAreaLocator.h>
 #include <geos/algorithm/CircularArcs.h>
 #include <geos/geom/CircularArc.h>
+#include <geos/geom/Clothoid.h>
 #include <geos/geom/Curve.h>
 #include <geos/geom/Geometry.h>
 #include <geos/geom/SimpleCurve.h>
@@ -92,15 +94,19 @@ IndexedPointInAreaLocator::IntervalIndexedGeometry::init(const geom::Geometry& g
     std::vector<const geom::Curve*> rings;
     getClosedCurves(g, rings);
 
-    // pre-compute size of segment and arc vectors
+    // pre-compute size of segment, arc and clothoid vectors
     std::size_t nsegs = 0;
     std::size_t narcs = 0;
+    std::size_t nclothoids = 0;
     for (const geom::Curve* ring : rings) {
         for (std::size_t i = 0; i < ring->getNumCurves(); i++) {
             const geom::SimpleCurve* section = ring->getCurveN(i);
             const std::size_t npts = section->getCoordinatesRO()->size();
             if (section->getGeometryTypeId() == geom::GEOS_CIRCULARSTRING) {
                 narcs += (npts - 1) / 2;
+            }
+            else if (section->getGeometryTypeId() == geom::GEOS_CLOTHOID) {
+                nclothoids++;
             }
             else {
                 nsegs += npts - 1;
@@ -109,12 +115,16 @@ IndexedPointInAreaLocator::IntervalIndexedGeometry::init(const geom::Geometry& g
     }
     index = decltype(index)(10, nsegs);
     arcIndex = decltype(arcIndex)(10, narcs);
+    clothoidIndex = decltype(clothoidIndex)(10, nclothoids);
 
     for (const geom::Curve* ring : rings) {
         for (std::size_t i = 0; i < ring->getNumCurves(); i++) {
             const geom::SimpleCurve* section = ring->getCurveN(i);
             if (section->getGeometryTypeId() == geom::GEOS_CIRCULARSTRING) {
                 addArcs(section->getCoordinatesRO());
+            }
+            else if (section->getGeometryTypeId() == geom::GEOS_CLOTHOID) {
+                addClothoid(static_cast<const geom::Clothoid*>(section));
             }
             else {
                 addLine(section->getCoordinatesRO());
@@ -146,6 +156,18 @@ IndexedPointInAreaLocator::IntervalIndexedGeometry::addArcs(const geom::Coordina
 
         arcIndex.insert(index::strtree::Interval(env.getMinY(), env.getMaxY()), ArcView{pts, i-2});
     }
+}
+
+void
+IndexedPointInAreaLocator::IntervalIndexedGeometry::addClothoid(const geom::Clothoid* clothoid)
+{
+    if (clothoid->isEmpty()) {
+        return;
+    }
+    // A point within the evaluation tolerance of the clothoid is on it.
+    const double tol = algorithm::clothoid::PlacedClothoid(*clothoid).tolerance();
+    const geom::Envelope* env = clothoid->getEnvelopeInternal();
+    clothoidIndex.insert(index::strtree::Interval(env->getMinY() - tol, env->getMaxY() + tol), clothoid);
 }
 
 
@@ -183,6 +205,10 @@ IndexedPointInAreaLocator::locate(const geom::CoordinateXY* /*const*/ p)
 
     index->queryArcs(p->y, p->y, [&rcc](const ArcView& av) {
         rcc.countArc(geom::CircularArc(*av.seq, av.pos));
+    });
+
+    index->queryClothoids(p->y, p->y, [&rcc](const geom::Clothoid* clothoid) {
+        rcc.countClothoid(*clothoid);
     });
 
     return rcc.getLocation();

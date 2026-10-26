@@ -16,12 +16,14 @@
  *
  **********************************************************************/
 
+#include <algorithm/ClothoidGeometry.h>
 #include <geos/geom/CoordinateSequence.h>
 #include <geos/geom/Geometry.h>
 #include <geos/geom/LineSegment.h>
 #include <geos/algorithm/CircularArcs.h>
 #include <geos/algorithm/Distance.h>
 #include <geos/geom/CircularArc.h>
+#include <geos/geom/Clothoid.h>
 #include <geos/operation/distance/FacetSequence.h>
 
 #include <memory>
@@ -36,6 +38,17 @@ FacetSequence::FacetSequence(const CoordinateSequence* p_pts, std::size_t p_star
     , start(p_start)
     , end(p_end)
     , arcs(p_arcs)
+    , clothoid(nullptr)
+{
+    computeEnvelope();
+}
+
+FacetSequence::FacetSequence(const Clothoid* p_clothoid)
+    : pts(p_clothoid->getCoordinatesRO())
+    , start(0)
+    , end(p_clothoid->getCoordinatesRO()->size())
+    , arcs(false)
+    , clothoid(p_clothoid)
 {
     computeEnvelope();
 }
@@ -55,7 +68,7 @@ FacetSequence::isPoint() const
 double
 FacetSequence::distance(const FacetSequence& facetSeq) const
 {
-    if (arcs || facetSeq.arcs) {
+    if (arcs || facetSeq.arcs || clothoid || facetSeq.clothoid) {
         return computeDistanceWithArcs(facetSeq, nullptr);
     }
 
@@ -89,7 +102,7 @@ std::vector<Coordinate>
 FacetSequence::nearestLocations(const FacetSequence& facetSeq)  const
 {
     std::vector<Coordinate> locs;
-    if (arcs || facetSeq.arcs) {
+    if (arcs || facetSeq.arcs || clothoid || facetSeq.clothoid) {
         computeDistanceWithArcs(facetSeq, &locs);
         return locs;
     }
@@ -228,7 +241,7 @@ FacetSequence::updateNearestLocationsLineLine(
 std::size_t
 FacetSequence::numElements() const
 {
-    if (isPoint()) {
+    if (clothoid || isPoint()) {
         return 1;
     }
     return arcs ? (end - start - 1) / 2 : end - start - 1;
@@ -238,7 +251,10 @@ Envelope
 FacetSequence::elementEnvelope(std::size_t i) const
 {
     Envelope e;
-    if (isPoint()) {
+    if (clothoid) {
+        e = env;
+    }
+    else if (isPoint()) {
         e.expandToInclude(pts->getAt<CoordinateXY>(start));
     }
     else if (arcs) {
@@ -257,6 +273,31 @@ FacetSequence::elementEnvelope(std::size_t i) const
 std::array<CoordinateXY, 2>
 FacetSequence::closestPoints(std::size_t i, const FacetSequence& facetSeq, std::size_t j) const
 {
+    if (facetSeq.clothoid && !clothoid) {
+        auto pts2 = facetSeq.closestPoints(j, *this, i);
+        return {pts2[1], pts2[0]};
+    }
+
+    if (clothoid) {
+        using namespace geos::algorithm::clothoid;
+        const PlacedClothoid placed(*clothoid);
+        Nearest n;
+        if (facetSeq.clothoid) {
+            n = nearestToClothoid(placed, PlacedClothoid(*facetSeq.clothoid));
+        }
+        else if (facetSeq.isPoint()) {
+            n = nearestToPoint(placed, facetSeq.pts->getAt<CoordinateXY>(facetSeq.start));
+        }
+        else if (facetSeq.arcs) {
+            n = nearestToArc(placed, CircularArc(*facetSeq.pts, facetSeq.start + 2*j));
+        }
+        else {
+            n = nearestToSegment(placed, facetSeq.pts->getAt<CoordinateXY>(facetSeq.start + j),
+                                 facetSeq.pts->getAt<CoordinateXY>(facetSeq.start + j + 1));
+        }
+        return {n.onCurve, n.onTarget};
+    }
+
     if (isPoint()) {
         const CoordinateXY& p = pts->getAt<CoordinateXY>(start);
         if (facetSeq.isPoint()) {
@@ -321,6 +362,12 @@ void
 FacetSequence::computeEnvelope()
 {
     env = Envelope();
+    if (clothoid) {
+        // A point within the evaluation tolerance of the clothoid is on it.
+        env = *clothoid->getEnvelopeInternal();
+        env.expandBy(algorithm::clothoid::PlacedClothoid(*clothoid).tolerance());
+        return;
+    }
     if (arcs) {
         for (std::size_t i = start; i + 2 < end; i += 2) {
             CircularArcs::expandEnvelope(env, pts->getAt<CoordinateXY>(i),
@@ -369,6 +416,11 @@ FacetSequence::nearestLocation(const CoordinateXY& p) const
 CoordinateSequenceLocation
 FacetSequence::nearestLocationOnLine(const CoordinateXY& pt) const
 {
+    if (clothoid) {
+        const algorithm::clothoid::PlacedClothoid placed(*clothoid);
+        const auto n = algorithm::clothoid::nearestToPoint(placed, pt);
+        return CoordinateSequenceLocation(pts, start, Coordinate(n.onCurve));
+    }
     if (arcs) {
         double minDistance = DoubleInfinity;
         std::size_t index = start;

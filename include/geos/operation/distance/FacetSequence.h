@@ -27,6 +27,7 @@
 
 namespace geos {
 namespace geom {
+class Clothoid;
 class CoordinateSequence;
 }
 }
@@ -44,6 +45,8 @@ private:
     const std::size_t end;
     // whether consecutive coordinates are circular arcs (p0, p1, p2) rather than segments
     const bool arcs;
+    // a clothoid forming the single facet of this sequence, or null
+    const geom::Clothoid* clothoid;
 
     /*
     * Unlike JTS, we store the envelope in the FacetSequence so
@@ -105,6 +108,13 @@ public:
      *             start and end must lie on arc endpoints
      */
     FacetSequence(const geom::CoordinateSequence* pts, std::size_t start, std::size_t end, bool arcs = false);
+
+    /**
+     * Creates a sequence whose single facet is a clothoid.
+     *
+     * @param clothoid a non-empty clothoid
+     */
+    explicit FacetSequence(const geom::Clothoid* clothoid);
 
     /**
      * Computes the locations of the nearest points between this sequence

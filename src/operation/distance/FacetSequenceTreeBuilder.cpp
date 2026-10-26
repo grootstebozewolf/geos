@@ -17,6 +17,7 @@
  **********************************************************************/
 
 #include <geos/operation/distance/FacetSequenceTreeBuilder.h>
+#include <geos/geom/Clothoid.h>
 #include <geos/geom/Curve.h>
 #include <geos/geom/LineString.h>
 #include <geos/geom/Point.h>
@@ -60,6 +61,11 @@ FacetSequenceTreeBuilder::computeFacetSequences(const Geometry* g)
                         const CoordinateSequence* seq = section->getCoordinatesRO();
                         if (section->getGeometryTypeId() == GEOS_CIRCULARSTRING) {
                             addArcFacetSequences(seq, m_sections);
+                        }
+                        else if (section->getGeometryTypeId() == GEOS_CLOTHOID) {
+                            if (!section->isEmpty()) {
+                                m_sections.emplace_back(static_cast<const Clothoid*>(section));
+                            }
                         }
                         else {
                             addFacetSequences(seq, m_sections);

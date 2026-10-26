@@ -266,6 +266,21 @@ swapped(const Nearest& n)
     return s;
 }
 
+/// A pair closer than the curve's evaluation tolerance touches: points that
+/// near are on the curve for point location, so report them as coincident.
+Nearest
+snapped(const Nearest& n, double tolerance)
+{
+    if (n.distance > tolerance || n.distance == 0.0) {
+        return n;
+    }
+    Nearest s;
+    s.distance = 0.0;
+    s.onCurve = n.onTarget;
+    s.onTarget = n.onTarget;
+    return s;
+}
+
 /// Distance between the boxes spanned by (a, b) and env.
 double
 boxEnvelopeDistance(const CoordinateXY& a, const CoordinateXY& b, const Envelope& env)
@@ -420,7 +435,7 @@ nearestToPoint(const PlacedClothoid& curve, const CoordinateXY& q)
         best.consider(s.pb.distance(q), s.pb, q);
     };
     walkCritical(curve, q, prune, visit);
-    return best.nearest();
+    return snapped(best.nearest(), curve.tolerance());
 }
 
 Nearest
@@ -482,7 +497,7 @@ nearestToSegment(const PlacedClothoid& curve, const CoordinateXY& p0, const Coor
             best.consider(0.0, p, p);
         }
     }
-    return best.nearest();
+    return snapped(best.nearest(), curve.tolerance());
 }
 
 Nearest
@@ -535,7 +550,7 @@ nearestToArc(const PlacedClothoid& curve, const CircularArc& arc)
         }
     };
     walkCritical(curve, c, prune, visit);
-    return best.nearest();
+    return snapped(best.nearest(), curve.tolerance());
 }
 
 Nearest
@@ -635,7 +650,7 @@ nearestToClothoid(const PlacedClothoid& curve, const PlacedClothoid& other)
         queue.push(Item{lowerBound(item.pa, pm, item.fa, fm), item.a, m, item.pa, pm, item.fa, fm});
         queue.push(Item{lowerBound(pm, item.pb, fm, item.fb), m, item.b, pm, item.pb, fm, item.fb});
     }
-    return best.nearest();
+    return snapped(best.nearest(), std::max(curve.tolerance(), other.tolerance()));
 }
 
 void

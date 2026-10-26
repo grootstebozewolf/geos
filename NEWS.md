@@ -8,8 +8,11 @@
 
 - Fixes/Improvements:
   - Curve overlay robustness improvements (GH-1513, Dan Baston)
-  - Support curved geometries in intersects / disjoint, IndexedPointInAreaLocator and
-    IndexedFacetDistance / GEOSDistanceIndexed, without linearization (Jeroen Bloemscheer)
+  - Support curved geometries, clothoids included, in intersects / disjoint,
+    IndexedPointInAreaLocator and IndexedFacetDistance / GEOSDistanceIndexed,
+    without linearization (Jeroen Bloemscheer)
+  - Report clothoid distances within the evaluation tolerance as zero, so crossing
+    clothoids intersect (Jeroen Bloemscheer)
   - PointLocator: support CurvePolygon, MultiCurve and MultiSurface, and treat the endpoints
     of open (not closed) CircularString and CompoundCurve as boundary (Jeroen Bloemscheer)
   - Fix arc-segment distance missing closest pairs at segment endpoints and arc endpoints (Jeroen Bloemscheer)

@@ -29,6 +29,7 @@ namespace algorithm {
 class RayCrossingCounter;
 }
 namespace geom {
+class Clothoid;
 class Geometry;
 class Coordinate;
 class CoordinateSequence;
@@ -48,7 +49,8 @@ namespace locate { // geos::algorithm::locate
  *
  * Polygonal and [LinearRing](@ref geom::LinearRing) geometries are supported,
  * including CurvePolygon and MultiSurface geometries whose rings contain
- * circular arcs. Arcs are indexed and tested exactly, without linearization.
+ * circular arcs or clothoids. These are indexed and tested directly, without
+ * linearization.
  *
  * The index is lazy-loaded, which allows creating instances even if they are not used.
  *
@@ -94,10 +96,12 @@ private:
 
         index::strtree::TemplateSTRtree<SegmentView, index::strtree::IntervalTraits> index;
         index::strtree::TemplateSTRtree<ArcView, index::strtree::IntervalTraits> arcIndex;
+        index::strtree::TemplateSTRtree<const geom::Clothoid*, index::strtree::IntervalTraits> clothoidIndex;
 
         void init(const geom::Geometry& g);
         void addLine(const geom::CoordinateSequence* pts);
         void addArcs(const geom::CoordinateSequence* pts);
+        void addClothoid(const geom::Clothoid* clothoid);
 
     public:
         IntervalIndexedGeometry(const geom::Geometry& g);
@@ -110,6 +114,11 @@ private:
         template<typename Visitor>
         void queryArcs(double min, double max, Visitor&& f) {
             arcIndex.query(index::strtree::Interval(min, max), f);
+        }
+
+        template<typename Visitor>
+        void queryClothoids(double min, double max, Visitor&& f) {
+            clothoidIndex.query(index::strtree::Interval(min, max), f);
         }
     };
 
