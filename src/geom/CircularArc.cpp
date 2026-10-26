@@ -15,8 +15,10 @@
 #include <geos/algorithm/Angle.h>
 #include <geos/algorithm/CircularArcs.h>
 #include <geos/algorithm/CurveToLineParams.h>
+#include <geos/algorithm/PointLocation.h>
 #include <geos/geom/CircularArc.h>
 #include <geos/geom/Envelope.h>
+#include <geos/math/DD.h>
 #include <geos/triangulate/quadedge/TrianglePredicate.h>
 #include <sstream>
 
@@ -213,8 +215,25 @@ CircularArc::containsAngle(double theta) const
 bool
 CircularArc::containsPoint(const CoordinateXY& q) const
 {
+    if (isLinear()) {
+        // Collinear control points describe the segment p0-p2, as in
+        // getLength() and CircularArcIntersector.
+        return algorithm::PointLocation::isOnSegment(q, p0(), p2());
+    }
+
     if (q == p0() || q == p1() || q == p2()) {
         return true;
+    }
+
+    if (isCircle()) {
+        // p0 and p1 are the ends of a diameter, so q is on the circle when the
+        // angle p0-q-p1 is a right angle (Thales).
+        using math::DD;
+        const DD ax = DD(p0().x) - q.x;
+        const DD ay = DD(p0().y) - q.y;
+        const DD bx = DD(p1().x) - q.x;
+        const DD by = DD(p1().y) - q.y;
+        return (ax*bx + ay*by).isZero();
     }
 
     //auto dist = std::abs(q.distance(getCenter()) - getRadius());
@@ -230,21 +249,67 @@ CircularArc::containsPoint(const CoordinateXY& q) const
     return containsPointOnCircle(q);
 }
 
+namespace {
+
+/// The control points that lie on the arc: all three, or only the endpoints
+/// when the control points are collinear.
+struct ArcVertices {
+    std::array<CoordinateXY, 3> pts;
+    std::size_t size;
+
+    explicit ArcVertices(const CircularArc& arc)
+        : pts{arc.p0(), arc.p2(), arc.p1()}
+        , size(arc.isLinear() ? 2 : 3)
+    {}
+
+    const CoordinateXY* begin() const { return pts.data(); }
+    const CoordinateXY* end() const { return pts.data() + size; }
+};
+
+}
+
 CoordinateXY
 CircularArc::closestPoint(const CoordinateXY &q) const
 {
+    if (containsPoint(q)) {
+        return q;
+    }
     return CircularArcs::closestPointArcPoint(getCenter(), getRadius(), p0(), p2(), isCCW(), q);
 }
 
 std::array<CoordinateXY, 2>
 CircularArc::closestPoints(const CoordinateXY& q0, const CoordinateXY& q1) const
 {
+    // Report a vertex lying on the other input as a zero distance.
+    for (const CoordinateXY& q : {q0, q1}) {
+        if (containsPoint(q)) {
+            return {q, q};
+        }
+    }
+    for (const CoordinateXY& p : ArcVertices(*this)) {
+        if (algorithm::PointLocation::isOnSegment(p, q0, q1)) {
+            return {p, p};
+        }
+    }
+
     return CircularArcs::closestPointsArcSegment(getCenter(), getRadius(), p0(), p2(), isCCW(), q0, q1);
 }
 
 std::array<CoordinateXY, 2>
 CircularArc::closestPoints(const CircularArc &other) const
 {
+    // Report a vertex lying on the other arc as a zero distance.
+    for (const CoordinateXY& q : ArcVertices(other)) {
+        if (containsPoint(q)) {
+            return {q, q};
+        }
+    }
+    for (const CoordinateXY& p : ArcVertices(*this)) {
+        if (other.containsPoint(p)) {
+            return {p, p};
+        }
+    }
+
     return CircularArcs::closestPointsArcArc(getCenter(), getRadius(), p0(), p2(), isCCW(),
         other.getCenter(), other.getRadius(), other.p0(), other.p2(), other.isCCW());
 }
@@ -252,21 +317,21 @@ CircularArc::closestPoints(const CircularArc &other) const
 double
 CircularArc::distance(const CoordinateXY &q) const
 {
-    return CircularArcs::distanceArcPoint(getCenter(), getRadius(), p0(), p2(), isCCW(), q);
+    return closestPoint(q).distance(q);
 }
 
 double
 CircularArc::distance(const CoordinateXY& q0, const CoordinateXY& q1) const
 {
-    return CircularArcs::distanceArcSegment(getCenter(), getRadius(), p0(), p2(), isCCW(), q0, q1);
+    const auto pts = closestPoints(q0, q1);
+    return pts[0].distance(pts[1]);
 }
 
 double
 CircularArc::distance(const CircularArc &other) const
 {
-    return CircularArcs::distanceArcArc(
-        getCenter(), getRadius(), p0(), p2(), isCCW(),
-        other.getCenter(), other.getRadius(), other.p0(), other.p2(), other.isCCW());
+    const auto pts = closestPoints(other);
+    return pts[0].distance(pts[1]);
 }
 
 

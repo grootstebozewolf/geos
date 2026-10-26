@@ -38,22 +38,22 @@ void object::test<2>()
     ensure(geom1_);
     ensure(geom2_);
 
-    ensure_equals("curved geometry not supported", GEOSDisjoint(geom1_, geom2_), 2);
-    ensure_equals("curved geometry not supported", GEOSDisjoint(geom2_, geom1_), 2);
+    ensure_equals(GEOSDisjoint(geom1_, geom2_), 0);
+    ensure_equals(GEOSDisjoint(geom2_, geom1_), 0);
 }
 
 template<>
 template<>
 void object::test<3>()
 {
-    set_test_name("GEOSDisjoint with automatic linearization");
+    set_test_name("GEOSDisjoint with and without automatic linearization");
 
     useContext();
 
     geom1_ = fromWKT("CIRCULARSTRING (0 0, 1 1, 2 0)");
     geom2_ = fromWKT("CIRCULARSTRING (2 0, 3 -1, 4 0)");
 
-    ensure_equals(2, GEOSDisjoint_r(ctxt_, geom1_, geom2_));
+    ensure_equals(0, GEOSDisjoint_r(ctxt_, geom1_, geom2_));
     useCurveConversion();
     ensure_equals(0, GEOSDisjoint_r(ctxt_, geom1_, geom2_));
 }
@@ -66,6 +66,19 @@ void object::test<4>()
 
     geom1_ = fromWKT("MULTISURFACE(POLYGON ((100 100, 200 100, 200 200, 100 100)), CURVEPOLYGON (COMPOUNDCURVE(CIRCULARSTRING(0 0, 1 1, 2 0), (2 0, 0 0))))");
     geom2_ = fromWKT("MULTIPOINT ((5000 5000), (0.1556955 0.5355459))");
+
+    ensure_equals(GEOSDisjoint(geom1_, geom2_), 0);
+    ensure_equals(GEOSDisjoint(geom2_, geom1_), 0);
+}
+
+template<>
+template<>
+void object::test<5>()
+{
+    set_test_name("curved types without arcs");
+
+    geom1_ = fromWKT("CURVEPOLYGON (COMPOUNDCURVE ((0 0, 10 0, 10 10, 0 10, 0 0)))");
+    geom2_ = fromWKT("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))");
 
     ensure_equals(GEOSDisjoint(geom1_, geom2_), 0);
     ensure_equals(GEOSDisjoint(geom2_, geom1_), 0);

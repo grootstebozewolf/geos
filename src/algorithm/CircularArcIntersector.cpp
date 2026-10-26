@@ -16,6 +16,7 @@
 #include <geos/algorithm/CircularArcIntersector.h>
 #include <geos/algorithm/CircularArcs.h>
 #include <geos/algorithm/LineIntersector.h>
+#include <geos/algorithm/PointLocation.h>
 #include <geos/geom/CoordinateSequences.h>
 #include <geos/math/DD.h>
 
@@ -165,15 +166,23 @@ CircularArcIntersector::intersects(const CircularArc& arc, const CoordinateSeque
     // up front so that the floating-point circle-line computation below,
     // which can conclude "no intersection" for a grazing configuration,
     // cannot discard them.
+    // The same holds for a segment endpoint on the arc and for an arc control
+    // point on the segment, tested with containsPoint and isOnSegment.
     CoordinateXY shared[2];
     int nShared = 0;
+    auto addShared = [&shared, &nShared](const CoordinateXY& pt) {
+        if (nShared < 2 && (nShared == 0 || !shared[0].equals2D(pt))) {
+            shared[nShared++] = pt;
+        }
+    };
+    for (const CoordinateXY& b : {bp0, bp1}) {
+        if (arc.containsPoint(b)) {
+            addShared(b);
+        }
+    }
     for (const CoordinateXY& a : {ap0, ap1, ap2}) {
-        for (const CoordinateXY& b : {bp0, bp1}) {
-            if (a.equals2D(b) && (nShared == 0 || !shared[0].equals2D(a))) {
-                if (nShared < 2) {
-                    shared[nShared++] = a;
-                }
-            }
+        if (PointLocation::isOnSegment(a, bp0, bp1)) {
+            addShared(a);
         }
     }
 
@@ -199,6 +208,9 @@ CircularArcIntersector::intersects(const CircularArc& arc, const CoordinateSeque
         }
         if (Orientation::index(bp0, bp1, ap2) == Orientation::COLLINEAR) {
             closestPoint(isect0, isect1, nCand, ap2) = ap2;
+        }
+        for (int i = 0; i < nShared; i++) {
+            closestPoint(isect0, isect1, nCand, shared[i]) = shared[i];
         }
     }
 
@@ -263,15 +275,23 @@ CircularArcIntersector::intersects(const CircularArc& arc1, const CircularArc& a
     // the floating-point circle computation below, which can conclude
     // "no intersection" for circles that are tangent at the shared point,
     // cannot discard them.
+    // The same holds for a control point of one arc on the other, tested
+    // with containsPoint.
     CoordinateXY shared[2];
     int nShared = 0;
+    auto addShared = [&shared, &nShared](const CoordinateXY& pt) {
+        if (nShared < 2 && (nShared == 0 || !shared[0].equals2D(pt))) {
+            shared[nShared++] = pt;
+        }
+    };
+    for (const CoordinateXY& b : {bp0, bp1, bp2}) {
+        if (arc1.containsPoint(b)) {
+            addShared(b);
+        }
+    }
     for (const CoordinateXY& a : {ap0, ap1, ap2}) {
-        for (const CoordinateXY& b : {bp0, bp1, bp2}) {
-            if (a.equals2D(b) && (nShared == 0 || !shared[0].equals2D(a))) {
-                if (nShared < 2) {
-                    shared[nShared++] = a;
-                }
-            }
+        if (arc2.containsPoint(a)) {
+            addShared(a);
         }
     }
 
@@ -307,6 +327,9 @@ CircularArcIntersector::intersects(const CircularArc& arc1, const CircularArc& a
             }
             if (ap2 == bp0 || ap2 == bp1 || ap2 == bp2) {
                 closestPoint(isect0, isect1, nCand, ap2) = ap2;
+            }
+            for (int i = 0; i < nShared; i++) {
+                closestPoint(isect0, isect1, nCand, shared[i]) = shared[i];
             }
         }
 
@@ -349,6 +372,8 @@ void
 CircularArcIntersector::intersects(const CoordinateSequence &p, std::size_t p0, std::size_t p1,
                                    const CoordinateSequence &q, std::size_t q0, std::size_t q1)
 {
+    reset();
+
     LineIntersector li(precisionModel);
     li.computeIntersection(p, p0, p1, q, q0, q1);
 
@@ -356,6 +381,7 @@ CircularArcIntersector::intersects(const CoordinateSequence &p, std::size_t p0, 
         // FIXME this means a collinear intersection, so we should report as cocircular?
         intPt[0] = li.getIntersection(0);
         intPt[1] = li.getIntersection(1);
+        nPt = 2;
         result = TWO_POINT_INTERSECTION;
     } else if (li.getIntersectionNum() == 1) {
         intPt[0] = li.getIntersection(0);

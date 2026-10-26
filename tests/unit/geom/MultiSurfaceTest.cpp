@@ -129,9 +129,9 @@ void object::test<3>()
     ensure_THROW(ms_->coveredBy(ms_.get()), geos::util::UnsupportedOperationException);
     ensure_THROW(ms_->covers(ms_.get()), geos::util::UnsupportedOperationException);
     ensure_THROW(ms_->crosses(ms_.get()), geos::util::UnsupportedOperationException);
-    ensure_THROW(ms_->disjoint(ms_.get()), geos::util::UnsupportedOperationException);
+    ensure_not("disjoint", ms_->disjoint(ms_.get()));
     ensure_THROW(ms_->equals(ms_.get()), geos::util::UnsupportedOperationException);
-    ensure_THROW(ms_->intersects(ms_.get()), geos::util::UnsupportedOperationException);
+    ensure("intersects", ms_->intersects(ms_.get()));
     ensure_THROW(ms_->overlaps(ms_.get()), geos::util::UnsupportedOperationException);
     ensure_THROW(ms_->relate(ms_.get()), geos::util::UnsupportedOperationException);
     ensure_THROW(ms_->touches(ms_.get()), geos::util::UnsupportedOperationException);

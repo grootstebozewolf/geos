@@ -92,5 +92,24 @@ void object::test<4>()
     ensure_equals(GEOSDirectedHausdorffDistanceWithin(geom1_, geom2_, 2.0), 1);
 }
 
+template<>
+template<>
+void object::test<5>()
+{
+    set_test_name("curved inputs are refused; empty inputs give NaN");
+
+    geom1_ = fromWKT("POINT (5 1)");
+    geom2_ = fromWKT("CURVEPOLYGON (COMPOUNDCURVE ((0 0, 10 0, 10 10, 0 0)))");
+
+    double dist = 0;
+    ensure_equals(GEOSDirectedHausdorffDistance(geom1_, geom2_, &dist), 0);
+    ensure_equals(GEOSDirectedHausdorffDistance(geom2_, geom1_, &dist), 0);
+
+    GEOSGeom_destroy(geom2_);
+    geom2_ = fromWKT("CIRCULARSTRING EMPTY");
+    ensure_equals(GEOSDirectedHausdorffDistance(geom2_, geom1_, &dist), 1);
+    ensure(std::isnan(dist));
+}
+
 
 } // namespace tut

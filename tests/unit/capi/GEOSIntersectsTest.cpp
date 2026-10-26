@@ -227,8 +227,8 @@ void object::test<11>()
     ensure(geom1_);
     ensure(geom2_);
 
-    ensure_equals("curved geometry not supported", GEOSIntersects(geom1_, geom2_), 2);
-    ensure_equals("curved geometry not supported", GEOSIntersects(geom2_, geom1_), 2);
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 1);
+    ensure_equals(GEOSIntersects(geom2_, geom1_), 1);
 }
 
 // test PIP special case for CurvePolygon
@@ -260,14 +260,14 @@ template<>
 template<>
 void object::test<14>()
 {
-    set_test_name("GEOSIntersects with automatic linearization");
+    set_test_name("GEOSIntersects with and without automatic linearization");
 
     useContext();
 
     geom1_ = fromWKT("CIRCULARSTRING (0 0, 1 1, 2 0)");
     geom2_ = fromWKT("CIRCULARSTRING (2 0, 3 -1, 4 0)");
 
-    ensure_equals(2, GEOSIntersects_r(ctxt_, geom1_, geom2_));
+    ensure_equals(1, GEOSIntersects_r(ctxt_, geom1_, geom2_));
     useCurveConversion();
     ensure_equals(1, GEOSIntersects_r(ctxt_, geom1_, geom2_));
 }
@@ -294,9 +294,121 @@ void object::test<16>()
     geom1_ = fromWKT("GEOMETRYCOLLECTION (CURVEPOLYGON (COMPOUNDCURVE(CIRCULARSTRING (-5 0, 0 5, 5 0), (5 0, -5 0))), LINESTRING (10 10, 11 11))");
     geom2_ = fromWKT("POINT (11 11)");
 
-    // can't rely on PIP with mixed-dimension input, so return error for now
-    ensure_equals(GEOSIntersects(geom1_, geom2_), 2);
-    ensure_equals(GEOSIntersects(geom2_, geom1_), 2);
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 1);
+    ensure_equals(GEOSIntersects(geom2_, geom1_), 1);
+}
+
+template<>
+template<>
+void object::test<17>()
+{
+    set_test_name("curved inputs without linearization");
+
+    // segment endpoint exactly on the arc interior
+    geom1_ = fromWKT("CIRCULARSTRING (-3 3, 0 1, -3 0)");
+    geom2_ = fromWKT("LINESTRING (0 2, 3 -1)");
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 1);
+    ensure_equals(GEOSIntersects(geom2_, geom1_), 1);
+    GEOSGeom_destroy(geom2_);
+
+    // line inside the arc's envelope and circle, without touching the arc
+    geom2_ = fromWKT("LINESTRING (-1.5 2.5, -1 2.5)");
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 0);
+    ensure_equals(GEOSIntersects(geom2_, geom1_), 0);
+}
+
+template<>
+template<>
+void object::test<18>()
+{
+    set_test_name("curved surfaces without linearization");
+
+    geom1_ = fromWKT("CURVEPOLYGON (CIRCULARSTRING (-5 0, 0 5, 5 0, 0 -5, -5 0), "
+                     "CIRCULARSTRING (-2 0, 0 2, 2 0, 0 -2, -2 0))");
+
+    // line inside the hole
+    geom2_ = fromWKT("LINESTRING (-1 0, 1 0)");
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 0);
+    GEOSGeom_destroy(geom2_);
+
+    // line inside the ring between shell and hole
+    geom2_ = fromWKT("LINESTRING (3 0, 4 0)");
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 1);
+    GEOSGeom_destroy(geom2_);
+
+    // polygon outside the shell, inside its envelope
+    geom2_ = fromWKT("POLYGON ((4 4, 5 4, 5 5, 4 5, 4 4))");
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 0);
+    ensure_equals(GEOSIntersects(geom2_, geom1_), 0);
+    GEOSGeom_destroy(geom2_);
+
+    // MultiSurface touching the shell at a single point
+    geom2_ = fromWKT("MULTISURFACE (CURVEPOLYGON (CIRCULARSTRING (5 0, 7 2, 9 0, 7 -2, 5 0)))");
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 1);
+    ensure_equals(GEOSIntersects(geom2_, geom1_), 1);
+}
+
+template<>
+template<>
+void object::test<19>()
+{
+    set_test_name("curved types without arcs");
+
+    geom1_ = fromWKT("COMPOUNDCURVE ((0 0, 2 2))");
+    geom2_ = fromWKT("LINESTRING (0 2, 2 0)");
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 1);
+    ensure_equals(GEOSIntersects(geom1_, geom1_), 1);
+    GEOSGeom_destroy(geom2_);
+
+    geom2_ = fromWKT("CURVEPOLYGON (COMPOUNDCURVE ((0 0, 10 0, 10 10, 0 0)))");
+    GEOSGeometry* pt = fromWKT("POINT (5 1)");
+    ensure_equals(GEOSIntersects(geom2_, pt), 1);
+    ensure_equals(GEOSIntersects(pt, geom2_), 1);
+    GEOSGeom_destroy(pt);
+}
+
+template<>
+template<>
+void object::test<20>()
+{
+    set_test_name("full circle given by three points");
+
+    geom1_ = fromWKT("CURVEPOLYGON (CIRCULARSTRING (5 0, -5 0, 5 0))");
+    geom2_ = fromWKT("POINT (0 0)");
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 1);
+    GEOSGeom_destroy(geom2_);
+
+    geom2_ = fromWKT("LINESTRING (-1 0, 1 0)");
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 1);
+}
+
+template<>
+template<>
+void object::test<21>()
+{
+    set_test_name("inputs touching at a shared endpoint");
+
+    // The envelopes touch along y = -48.
+    geom1_ = fromWKT("CIRCULARSTRING (0 -80, 48 -64, 64 -48)");
+    geom2_ = fromWKT("LINESTRING (64 -48, 0 -0.1)");
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 1);
+    ensure_equals(GEOSIntersects(geom2_, geom1_), 1);
+}
+
+template<>
+template<>
+void object::test<22>()
+{
+    set_test_name("collinear control points agree with intersection");
+
+    // The control points are treated as the segment from (0 0) to (1 0).
+    geom1_ = fromWKT("CIRCULARSTRING (0 0, 2 0, 1 0)");
+    geom2_ = fromWKT("LINESTRING (1.5 -1, 1.5 1)");
+    ensure_equals(GEOSIntersects(geom1_, geom2_), 0);
+
+    result_ = GEOSIntersection(geom1_, geom2_);
+    ensure(result_);
+    ensure_equals(GEOSisEmpty(result_), 1);
 }
 
 } // namespace tut

@@ -1801,7 +1801,7 @@ void object::test<90>()
     set_test_name("arcs tangent at a shared vertex intersect at it");
 
     // The circles through these control points are internally tangent at
-    // the shared vertex (5, 0). The rounded circle-circle disjointness test
+    // the shared vertex (5, 0). The rounded circle-circle separation test
     // concludes the circles do not meet, which formerly discarded the
     // exact shared vertex. (Differential-test oracle invariant: arcs
     // sharing an endpoint intersect.)
@@ -1927,6 +1927,46 @@ void object::test<97>()
                       XY{5, 0}, XY{-13.013189892510923, 476.4218618845866}, XY{426.8482396243887, 660.3353967726679},
                       CircularArcIntersector::ONE_POINT_INTERSECTION,
                       XY{5, 0});
+}
+
+template<>
+template<>
+void object::test<98>()
+{
+    set_test_name("segment endpoint lies exactly on arc interior");
+    setTolerance(0);
+    setToleranceIsDistance(false);
+
+    // The circle has center (-11/6, 3/2) and passes exactly through (0, 2).
+    checkIntersectionArcSeg(XY{-3, 3}, XY{0, 1}, XY{-3, 0},
+                            XY{0, 2}, XY{3, -1},
+                            CircularArcIntersector::ONE_POINT_INTERSECTION,
+                            XY{0, 2});
+}
+
+template<>
+template<>
+void object::test<99>()
+{
+    set_test_name("collinear segments overlapping, with a reused intersector");
+
+    CoordinateSequence p = CoordinateSequence::XY(0);
+    p.add(0.0, 0.0);
+    p.add(4.0, 0.0);
+    CoordinateSequence q = CoordinateSequence::XY(0);
+    q.add(1.0, 0.0);
+    q.add(6.0, 0.0);
+    q.add(10.0, 10.0);
+    q.add(11.0, 10.0);
+
+    CircularArcIntersector cai;
+    cai.intersects(p, 0, 1, q, 0, 1);
+    ensure_equals(cai.getResult(), CircularArcIntersector::TWO_POINT_INTERSECTION);
+    ensure_equals(static_cast<int>(cai.getNumPoints()), 2);
+
+    cai.intersects(p, 0, 1, q, 2, 3);
+    ensure_equals(cai.getResult(), CircularArcIntersector::NO_INTERSECTION);
+    ensure_equals(static_cast<int>(cai.getNumPoints()), 0);
 }
 
 // TODO: check Z values of arc result centerpoints

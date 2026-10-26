@@ -22,10 +22,12 @@
 #include <geos/geom/Coordinate.h>
 #include <geos/operation/distance/CoordinateSequenceLocation.h>
 
+#include <array>
 #include <vector>
 
 namespace geos {
 namespace geom {
+class Clothoid;
 class CoordinateSequence;
 }
 }
@@ -41,6 +43,10 @@ private:
     const geom::CoordinateSequence* pts;
     const std::size_t start;
     const std::size_t end;
+    // whether consecutive coordinates are circular arcs (p0, p1, p2) rather than segments
+    const bool arcs;
+    // a clothoid forming the single facet of this sequence, or null
+    const geom::Clothoid* clothoid;
 
     /*
     * Unlike JTS, we store the envelope in the FacetSequence so
@@ -66,6 +72,16 @@ private:
 
     CoordinateSequenceLocation nearestLocationOnLine(const geom::CoordinateXY& pt) const;
 
+    std::size_t numElements() const;
+
+    std::array<geom::CoordinateXY, 2> closestPoints(std::size_t i,
+                                                    const FacetSequence& facetSeq, std::size_t j) const;
+
+    geom::Envelope elementEnvelope(std::size_t i) const;
+
+    double computeDistanceWithArcs(const FacetSequence& facetSeq,
+                                   std::vector<geom::Coordinate>* locs) const;
+
     static std::size_t normalize(const geom::CoordinateSequence& pts, std::size_t index);
 
     void computeEnvelope();
@@ -82,7 +98,23 @@ public:
 
     double distance(const FacetSequence& facetSeq) const;
 
-    FacetSequence(const geom::CoordinateSequence* pts, std::size_t start, std::size_t end);
+    /**
+     * Creates a sequence of the facets between coordinates start and end (exclusive).
+     *
+     * @param pts the coordinates
+     * @param start index of the first coordinate
+     * @param end one past the index of the last coordinate
+     * @param arcs whether the coordinates describe circular arcs, in which case
+     *             start and end must lie on arc endpoints
+     */
+    FacetSequence(const geom::CoordinateSequence* pts, std::size_t start, std::size_t end, bool arcs = false);
+
+    /**
+     * Creates a sequence whose single facet is a clothoid.
+     *
+     * @param clothoid a non-empty clothoid
+     */
+    explicit FacetSequence(const geom::Clothoid* clothoid);
 
     /**
      * Computes the locations of the nearest points between this sequence

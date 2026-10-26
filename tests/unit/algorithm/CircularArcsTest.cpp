@@ -977,7 +977,7 @@ void object::test<71>()
     set_test_name("distance: arcs tangent at a shared vertex");
 
     // The circles through these control points are internally tangent at the
-    // shared vertex (5, 0), but the rounded circle-circle disjointness test
+    // shared vertex (5, 0), but the rounded circle-circle separation test
     // concludes they do not meet. The exact shared vertex must still make
     // the distance zero.
     CircularArc a = CircularArc::create(XY{5, 0}, XY{6.530331962423936, 32.9099081287533}, XY{39.1383458646334, 37.61324718856101});
@@ -1001,6 +1001,109 @@ void object::test<72>()
 
     ensure_equals(a.distance(b), 0);
     ensure_equals(b.distance(a), 0);
+}
+
+template<>
+template<>
+void object::test<73>()
+{
+    set_test_name("arc-seg distance, segment inside circle, closest to arc endpoint");
+
+    // The segment lies inside the circle and does not reach the arc, so the
+    // closest pair joins the arc endpoint at 70 degrees to the segment interior.
+    const double r = 10;
+    CircularArc arc = CircularArc::create(XY{r*std::cos(MATH_PI/3), r*std::sin(MATH_PI/3)},
+                                          XY{r*std::cos(13*MATH_PI/36), r*std::sin(13*MATH_PI/36)},
+                                          XY{r*std::cos(7*MATH_PI/18), r*std::sin(7*MATH_PI/18)});
+    XY q0{2, 0};
+    XY q1{2, 9.5};
+
+    ensure_equals("distance", arc.distance(q0, q1), arc.p2().x - 2, 1e-12);
+}
+
+template<>
+template<>
+void object::test<74>()
+{
+    set_test_name("arc-seg distance, segment outside circle, closest to segment endpoint");
+
+    // Previously reported as 5.47 because the candidate pair joining a segment
+    // endpoint to the arc interior was not considered.
+    CircularArc arc = CircularArc::create(XY{-3.48172, 2.91175}, XY{9.45735, -6.02278}, XY{1.44247, -0.448891});
+    XY q0{4.48559, 4.09741};
+    XY q1{-5.45188, -9.20177};
+
+    ensure_equals("distance", arc.distance(q0, q1), 0.2835665009749685, 1e-9);
+
+    const auto pts = arc.closestPoints(q0, q1);
+    ensure("first point is on the arc", std::abs(pts[0].distance(arc.getCenter()) - arc.getRadius()) < 1e-9);
+    ensure_equals("closest points distance", pts[0].distance(pts[1]), 0.2835665009749685, 1e-9);
+}
+
+template<>
+template<>
+void object::test<75>()
+{
+    set_test_name("containsPoint: full circle");
+
+    // p0 == p2, so p1 is the far end of a diameter: center (0, 0), r^2 = 10.
+    CircularArc circle = CircularArc::create(XY{1, -3}, XY{-1, 3}, XY{1, -3});
+
+    ensure(circle.containsPoint(XY{3, 1}));
+    ensure(circle.containsPoint(XY{-3, -1}));
+    ensure_not(circle.containsPoint(XY{1, 0}));
+    ensure_not(circle.containsPoint(XY{0, 0}));
+    ensure_equals("distance", circle.distance(XY{1, 0}), std::sqrt(10) - 1, 1e-12);
+}
+
+template<>
+template<>
+void object::test<76>()
+{
+    set_test_name("containsPoint and distance: collinear control points");
+
+    // Collinear control points are treated as the segment p0-p2, as in
+    // getLength() and CircularArcIntersector, so p1 is not on the curve.
+    CircularArc arc = CircularArc::create(XY{0, 0}, XY{2, 0}, XY{1, 0});
+
+    ensure(arc.containsPoint(XY{0.5, 0}));
+    ensure_not(arc.containsPoint(XY{1.5, 0}));
+    ensure_not(arc.containsPoint(XY{2, 0}));
+    ensure_equals("distance", arc.distance(XY{1.5, 0}), 0.5);
+    ensure_equals("segment distance", arc.distance(XY{1.5, -1}, XY{1.5, 1}), 0.5);
+}
+
+template<>
+template<>
+void object::test<77>()
+{
+    set_test_name("distance: control point of one arc on the other arc");
+
+    // (3, -3) is the first endpoint of a and the middle control point of b.
+    CircularArc a = CircularArc::create(XY{3, -3}, XY{-2, -1}, XY{-3, -3});
+    CircularArc b = CircularArc::create(XY{2, 0}, XY{3, -3}, XY{-2, 0});
+
+    ensure_equals(a.distance(b), 0);
+    ensure_equals(b.distance(a), 0);
+}
+
+
+
+template<>
+template<>
+void object::test<78>()
+{
+    set_test_name("distance: candidate opposite the other center is outside the arc");
+
+    // The point of A opposite B's center lies outside A, and was accepted
+    // as a candidate. The closest pair is A's end (5 0) and B's circle,
+    // centered at (-4 3) with radius 10.
+    CircularArc a = CircularArc::create(XY{-4, -3}, XY{0, 5}, XY{5, 0});
+    CircularArc b = CircularArc::create(XY{2, -5}, XY{4, -3}, XY{6, 3});
+    const double expected = 10 - 3*std::sqrt(10);
+
+    ensure_equals("distance", a.distance(b), expected, 1e-12);
+    ensure_equals("distance reversed", b.distance(a), expected, 1e-12);
 }
 
 }

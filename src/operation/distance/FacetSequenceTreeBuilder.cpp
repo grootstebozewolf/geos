@@ -17,8 +17,13 @@
  **********************************************************************/
 
 #include <geos/operation/distance/FacetSequenceTreeBuilder.h>
+#include <geos/geom/Clothoid.h>
+#include <geos/geom/Curve.h>
 #include <geos/geom/LineString.h>
 #include <geos/geom/Point.h>
+#include <geos/geom/SimpleCurve.h>
+
+#include <algorithm>
 
 using namespace geos::geom;
 using namespace geos::index::strtree;
@@ -30,8 +35,6 @@ namespace distance {
 std::unique_ptr<TemplateSTRtree<const FacetSequence*>>
 FacetSequenceTreeBuilder::build(const Geometry* g)
 {
-    util::ensureNoCurvedComponents(g);
-
     std::unique_ptr<TemplateSTRtree<const FacetSequence*>> tree(new FacetSequenceTree(computeFacetSequences(g)));
 
     tree->build();
@@ -52,9 +55,22 @@ FacetSequenceTreeBuilder::computeFacetSequences(const Geometry* g)
             void
             filter_ro(const Geometry* geom) override
             {
-                if(const LineString* ls = dynamic_cast<const LineString*>(geom)) {
-                    const CoordinateSequence* seq = ls->getCoordinatesRO();
-                    addFacetSequences(seq, m_sections);
+                if(const Curve* curve = dynamic_cast<const Curve*>(geom)) {
+                    for (std::size_t i = 0; i < curve->getNumCurves(); i++) {
+                        const SimpleCurve* section = curve->getCurveN(i);
+                        const CoordinateSequence* seq = section->getCoordinatesRO();
+                        if (section->getGeometryTypeId() == GEOS_CIRCULARSTRING) {
+                            addArcFacetSequences(seq, m_sections);
+                        }
+                        else if (section->getGeometryTypeId() == GEOS_CLOTHOID) {
+                            if (!section->isEmpty()) {
+                                m_sections.emplace_back(static_cast<const Clothoid*>(section));
+                            }
+                        }
+                        else {
+                            addFacetSequences(seq, m_sections);
+                        }
+                    }
                 }
                 else if(const Point* pt = dynamic_cast<const Point*>(geom)) {
                     const CoordinateSequence* seq = pt->getCoordinatesRO();
@@ -87,6 +103,22 @@ FacetSequenceTreeBuilder::addFacetSequences(
         }
         sections.emplace_back(pts, i, end);
         i += FACET_SEQUENCE_SIZE;
+    }
+}
+
+void
+FacetSequenceTreeBuilder::addArcFacetSequences(
+    const CoordinateSequence* pts,
+    std::vector<FacetSequence>& sections)
+{
+    // Sections hold whole arcs, so they start and end on arc endpoints.
+    const std::size_t size = pts->size();
+    if (size < 3) return;
+
+    const std::size_t step = 2 * (FACET_SEQUENCE_SIZE / 2);
+    for (std::size_t i = 0; i + 1 < size; i += step) {
+        const std::size_t end = std::min(i + step + 1, size);
+        sections.emplace_back(pts, i, end, true);
     }
 }
 

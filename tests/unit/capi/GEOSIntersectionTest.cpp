@@ -199,7 +199,7 @@ template<>
 template<>
 void object::test<11>()
 {
-    set_test_name("SQL/MM type honesty: overlay does not flatten CC / CP / MC / MS");
+    set_test_name("SQL/MM overlay: arcs keep curve types, all-linear parts are linear as upstream");
 
     geom1_ = fromWKT("COMPOUNDCURVE ((0 0, 1 0), CIRCULARSTRING (1 0, 1 1, 0 1))");
     geom2_ = fromWKT("POINT (0 0)");
@@ -215,8 +215,8 @@ void object::test<11>()
     geom2_ = fromWKT("CURVEPOLYGON (LINESTRING (1 1, 3 1, 3 3, 1 3, 1 1))");
     result_ = GEOSUnion(geom1_, geom2_);
     ensure(result_);
-    ensure(GEOSGeomTypeId(result_) != GEOS_POLYGON);
-    ensure(GEOSGeomTypeId(result_) != GEOS_MULTIPOLYGON);
+    // No arc is left, so the result is a Polygon (upstream TestOverlayCurvesAA).
+    ensure_equals(GEOSGeomTypeId(result_), GEOS_POLYGON);
     GEOSGeom_destroy(result_);
     result_ = nullptr;
 
@@ -237,8 +237,38 @@ void object::test<11>()
     geom2_ = fromWKT("MULTISURFACE (CURVEPOLYGON (LINESTRING (2 2, 3 2, 3 3, 2 3, 2 2)))");
     result_ = GEOSUnion(geom1_, geom2_);
     ensure(result_);
-    ensure(GEOSGeomTypeId(result_) != GEOS_MULTIPOLYGON);
-    ensure(GEOSGeomTypeId(result_) != GEOS_POLYGON);
+    // Disjoint inputs are combined without overlay (HeuristicOverlay), so the
+    // CurvePolygons come back as they were.
+    ensure_equals(GEOSGeomTypeId(result_), GEOS_MULTISURFACE);
+    ensure_equals(GEOSGetNumGeometries(result_), 2);
+}
+
+template<>
+template<>
+void object::test<12>()
+{
+    set_test_name("segment endpoint exactly on an arc interior");
+
+    geom1_ = fromWKT("CIRCULARSTRING (-3 3, 0 1, -3 0)");
+    geom2_ = fromWKT("LINESTRING (0 2, 3 -1)");
+
+    result_ = GEOSIntersection(geom1_, geom2_);
+    ensure(result_);
+    ensure_geometry_equals(result_, "POINT (0 2)");
+}
+
+template<>
+template<>
+void object::test<13>()
+{
+    set_test_name("MultiCurve and Point");
+
+    geom1_ = fromWKT("MULTICURVE (CIRCULARSTRING (0 0, 1 1, 2 0), (2 0, 4 0))");
+    geom2_ = fromWKT("POINT (1 1)");
+
+    result_ = GEOSIntersection(geom1_, geom2_);
+    ensure(result_);
+    ensure_geometry_equals(result_, "POINT (1 1)");
 }
 
 } // namespace tut

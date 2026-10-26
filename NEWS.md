@@ -2,11 +2,16 @@
 2027-xx-xx
 
 - New things:
+  - Clothoid WKT/WKB (ISO type 22)
   - Add DirectedHausdorffDistance and C API GEOSDirectedHausdorffDistance /
     GEOSSymmetricHausdorffDistance (Martin Davis, Jeroen Bloemscheer, Dan Baston)
 
 - Fixes/Improvements:
   - Curve overlay robustness improvements (GH-1513, Dan Baston)
+  - Support curved inputs in intersects / disjoint, PointLocator, IndexedPointInAreaLocator
+    and GEOSDistanceIndexed (Jeroen Bloemscheer)
+  - Fix curve distance and point location errors, and the boundary of open curves (Jeroen Bloemscheer)
+  - Envelope::distance returns zero for envelopes that touch (Jeroen Bloemscheer)
   - GeometrySplitter: Allow splitting a MultiSurface (GH-1520, Dan Baston)
   - GEOSGridIntersectionFractions: Set cells outside geometry bounding box to zero (GH-1532, Dan Baston)
   - GEOSisSimpleDetail returns locations with input SRID (Sandro Santilli)

@@ -270,6 +270,7 @@ enum GEOSGeomTypes {
     GEOS_CURVEPOLYGON,
     GEOS_MULTICURVE,
     GEOS_MULTISURFACE,
+    GEOS_CLOTHOID,
 };
 
 /**
@@ -967,6 +968,10 @@ extern GEOSGeometry GEOS_DLL *GEOSGeom_createCircularString_r(
 
 /** \see GEOSGeom_createEmptyCircularString */
 extern GEOSGeometry GEOS_DLL *GEOSGeom_createEmptyCircularString_r(
+    GEOSContextHandle_t handle);
+
+/** \see GEOSGeom_createEmptyClothoid */
+extern GEOSGeometry GEOS_DLL *GEOSGeom_createEmptyClothoid_r(
     GEOSContextHandle_t handle);
 
 /** \see GEOSGeom_createCompoundCurve */
@@ -3081,6 +3086,13 @@ extern GEOSGeometry GEOS_DLL *GEOSGeom_createCircularString(GEOSCoordSequence* s
 extern GEOSGeometry GEOS_DLL *GEOSGeom_createEmptyCircularString(void);
 
 /**
+* Creates an empty Clothoid geometry.
+* \return A newly allocated Clothoid geometry. NULL on exception.
+* Caller is responsible for freeing with GEOSGeom_destroy().
+*/
+extern GEOSGeometry GEOS_DLL *GEOSGeom_createEmptyClothoid(void);
+
+/**
 * Creates a CompoundCurve geometry.
 * \param curves A list of geometries that will form the CompoundCurve
 * \param ncurves The number of geometries in the curves list
@@ -4082,7 +4094,7 @@ extern int GEOS_DLL GEOSGeomGetLength(
 * Calculate the distance between two geometries.
 * Distance is calculated in the XY plane; Z and M values are ignored.
 *
-* @INPUT_CURVES_CONVERTED_TO_LINES@
+* @INPUT_CURVES_SUPPORTED@
 *
 * \param[in] g1 Input geometry
 * \param[in] g2 Input geometry
@@ -4101,7 +4113,7 @@ extern int GEOS_DLL GEOSDistance(
 * within the given dist.
 * Distance is calculated in the XY plane; Z and M values are ignored.
 *
-* @INPUT_CURVES_CONVERTED_TO_LINES@
+* @INPUT_CURVES_SUPPORTED@
 *
 * \param g1 Input geometry
 * \param g2 Input geometry
@@ -4121,7 +4133,7 @@ extern char GEOS_DLL GEOSDistanceWithin(
 * internally, then calculates the distance. Useful when one
 * or both geometries is very large.
 *
-* @INPUT_CURVES_CONVERTED_TO_LINES@
+* @INPUT_CURVES_SUPPORTED_OR_CONVERTED@
 *
 * \param[in] g1 Input geometry
 * \param[in] g2 Input geometry
@@ -4141,7 +4153,7 @@ extern int GEOS_DLL GEOSDistanceIndexed(
 * The first point comes from g1 geometry and the second point comes from g2.
 * Returned points will not have Z or M values.
 *
-* @INPUT_CURVES_CONVERTED_TO_LINES@
+* @INPUT_CURVES_SUPPORTED_OR_CONVERTED@
 *
 * \param[in] g1 Input geometry
 * \param[in] g2 Input geometry
@@ -6419,6 +6431,9 @@ extern int GEOS_DLL GEOSLineToCurveParams_setMaxAngleDifferenceDegrees(
 
 /**
 * Tests if two geometries have no point in common.
+*
+* @INPUT_CURVES_SUPPORTED_OR_CONVERTED@
+*
 * \param g1 Input geometry
 * \param g2 Input geometry
 * \returns 1 on true, 0 on false, 2 on exception
@@ -6440,6 +6455,9 @@ extern char GEOS_DLL GEOSTouches(const GEOSGeometry* g1, const GEOSGeometry* g2)
 
 /**
 * Tests if two geometries intersect.
+*
+* @INPUT_CURVES_SUPPORTED_OR_CONVERTED@
+*
 * \param g1 Input geometry
 * \param g2 Input geometry
 * \returns 1 on true, 0 on false, 2 on exception

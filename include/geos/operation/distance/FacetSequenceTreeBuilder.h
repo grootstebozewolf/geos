@@ -45,6 +45,8 @@ private:
 
     static void addFacetSequences(const geom::CoordinateSequence* pts,
                                   std::vector<FacetSequence> & sections);
+    static void addArcFacetSequences(const geom::CoordinateSequence* pts,
+                                     std::vector<FacetSequence> & sections);
     static std::vector<FacetSequence> computeFacetSequences(const geom::Geometry* g);
 
     class FacetSequenceTree : public geos::index::strtree::TemplateSTRtree<const FacetSequence*> {

@@ -32,6 +32,7 @@
 #include <geos/geom/Point.h>
 #include <geos/operation/distance/IndexedFacetDistance.h>
 #include <geos/util/IllegalArgumentException.h>
+#include <geos/util.h>
 
 #include <cmath>
 #include <limits>
@@ -381,7 +382,11 @@ DirectedHausdorffDistance::isFullyWithinDistance(
 DirectedHausdorffDistance::DirectedHausdorffDistance(const Geometry& geom)
     : target(geom)
     , targetDistance(std::make_unique<TargetDistance>(geom))
-{}
+{
+    if (!geom.isEmpty()) {
+        util::ensureNoCurvedTypes(geom);
+    }
+}
 
 DirectedHausdorffDistance::~DirectedHausdorffDistance() = default;
 
@@ -432,6 +437,7 @@ DirectedHausdorffDistance::computeDistancePoints(
     if (geom.isEmpty() || target.isEmpty()) {
         return std::nullopt;
     }
+    util::ensureNoCurvedTypes(geom);
     if (geom.getDimension() == Dimension::P) {
         return computeForPoints(geom, maxDistanceLimit);
     }

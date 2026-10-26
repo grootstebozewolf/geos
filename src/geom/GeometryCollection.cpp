@@ -408,6 +408,12 @@ bool GeometryCollection::hasCurvedComponents() const {
     return flags.hasCurves;
 }
 
+bool GeometryCollection::hasCurvedTypes() const {
+    return std::any_of(geometries.begin(), geometries.end(), [](const auto& g) {
+        return g->hasCurvedTypes();
+    });
+}
+
 const CoordinateXY*
 GeometryCollection::getCoordinate() const
 {

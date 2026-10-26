@@ -35,6 +35,11 @@ set(INPUT_CURVES_CONVERTED_TO_LINES "This function does not support curved types
 * conversion parameters are registered with the context, curved
 * inputs will be automatically converted to lines. Otherwise, the
 * operation will fail.")
+set(INPUT_CURVES_SUPPORTED "This function supports curved types, including clothoids, directly.
+* Curve-to-line conversion parameters registered with the context are not applied.")
+set(INPUT_CURVES_SUPPORTED_OR_CONVERTED "This function supports curved types, including clothoids, directly.
+* If curve-to-line conversion parameters are registered with the context,
+* curved inputs are converted to lines first.")
 set(OUTPUT_LINES_CONVERTED_TO_CURVES "This function outputs linear geometry types only. If line-to-curve
 * conversion parameters are registered with the context, and a 
 * curved input was provided, outputs will be automatically 

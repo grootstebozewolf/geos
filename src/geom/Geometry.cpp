@@ -39,6 +39,7 @@
 #include <geos/algorithm/InteriorPointLine.h>
 #include <geos/algorithm/InteriorPointArea.h>
 #include <geos/algorithm/ConvexHull.h>
+#include <geos/algorithm/PointLocator.h>
 #include <geos/algorithm/locate/SimplePointInAreaLocator.h>
 #include <geos/geom/prep/PreparedGeometryFactory.h>
 #include <geos/operation/intersection/Rectangle.h>
@@ -51,7 +52,9 @@
 #include <geos/operation/valid/IsValidOp.h>
 #include <geos/operation/union/UnaryUnionOp.h>
 #include <geos/operation/buffer/BufferOp.h>
+#include <geos/operation/distance/ConnectedElementLocationFilter.h>
 #include <geos/operation/distance/DistanceOp.h>
+#include <geos/operation/distance/IndexedFacetDistance.h>
 #include <geos/operation/valid/IsSimpleOp.h>
 #include <geos/operation/overlayng/OverlayNGRobust.h>
 #include <geos/operation/overlayng/OverlayUtil.h>
@@ -261,7 +264,7 @@ Geometry::getEnvelope() const
 bool
 Geometry::disjoint(const Geometry* g) const
 {
-    if (hasCurvedComponents() || g->hasCurvedComponents()) {
+    if (hasCurvedTypes() || g->hasCurvedTypes()) {
         return !intersects(g);
     }
 
@@ -291,6 +294,21 @@ Geometry::touches(const Geometry* g) const
 #endif
 }
 
+/// Tests whether a point of some component of a lies in an area of b.
+static bool
+hasComponentInArea(const Geometry& a, const Geometry& b)
+{
+    if (b.getDimension() != Dimension::A) {
+        return false;
+    }
+    for (const auto& loc : ConnectedElementLocationFilter::getLocations(&a)) {
+        if (locate::SimplePointInAreaLocator::locate(loc.getCoordinate(), &b) != Location::EXTERIOR) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool
 Geometry::intersects(const Geometry* g) const
 {
@@ -317,6 +335,35 @@ Geometry::intersects(const Geometry* g) const
      * pt(B) in env(A)?
      */
 
+    if (hasCurvedTypes() || g->hasCurvedTypes()) {
+        // Locate points with PointLocator, so the result agrees with point
+        // location and overlay.
+        if (isPuntal() || g->isPuntal()) {
+            const Geometry& puntal = isPuntal() ? *this : *g;
+            const Geometry& other = isPuntal() ? *g : *this;
+
+            algorithm::PointLocator locator;
+            const auto pts = puntal.getCoordinates();
+            for (std::size_t i = 0; i < pts->size(); i++) {
+                if (locator.intersects(pts->getAt<CoordinateXY>(i), &other)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        if (!getEnvelopeInternal()->intersects(g->getEnvelopeInternal())) {
+            return false;
+        }
+
+        // Either a component of one lies in an area of the other, or their
+        // linework touches.
+        if (hasComponentInArea(*this, *g) || hasComponentInArea(*g, *this)) {
+            return true;
+        }
+        return IndexedFacetDistance(this).isWithinDistance(g, 0.0);
+    }
+
     // optimization for rectangle arguments
     if(isRectangle()) {
         const Polygon* p = detail::down_cast<const Polygon*>(this);
@@ -325,15 +372,6 @@ Geometry::intersects(const Geometry* g) const
     if(g->isRectangle()) {
         const Polygon* p = detail::down_cast<const Polygon*>(g);
         return predicate::RectangleIntersects::intersects(*p, *this);
-    }
-
-    if (hasCurvedComponents() || g->hasCurvedComponents()) {
-        if (isDimensionStrict(Dimension::A) && g->getDimension() == Dimension::P) {
-            return locate::SimplePointInAreaLocator::isAnyPointContained(*g, *this);
-        }
-        if (g->isDimensionStrict(Dimension::A) && getDimension() == Dimension::P) {
-            return locate::SimplePointInAreaLocator::isAnyPointContained(*this, *g);
-        }
     }
 
 #if USE_RELATENG
