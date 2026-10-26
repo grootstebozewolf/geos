@@ -166,8 +166,8 @@ CircularArcIntersector::intersects(const CircularArc& arc, const CoordinateSeque
     // up front so that the floating-point circle-line computation below,
     // which can conclude "no intersection" for a grazing configuration,
     // cannot discard them.
-    // The same holds for a segment endpoint that lies on the arc, and for an
-    // arc control point that lies on the segment; both are tested exactly.
+    // The same holds for a segment endpoint on the arc and for an arc control
+    // point on the segment, tested with containsPoint and isOnSegment.
     CoordinateXY shared[2];
     int nShared = 0;
     auto addShared = [&shared, &nShared](const CoordinateXY& pt) {
@@ -275,8 +275,8 @@ CircularArcIntersector::intersects(const CircularArc& arc1, const CircularArc& a
     // the floating-point circle computation below, which can conclude
     // "no intersection" for circles that are tangent at the shared point,
     // cannot discard them.
-    // The same holds for a control point of one arc that lies on the other,
-    // which is tested exactly.
+    // The same holds for a control point of one arc on the other, tested
+    // with containsPoint.
     CoordinateXY shared[2];
     int nShared = 0;
     auto addShared = [&shared, &nShared](const CoordinateXY& pt) {
@@ -372,6 +372,8 @@ void
 CircularArcIntersector::intersects(const CoordinateSequence &p, std::size_t p0, std::size_t p1,
                                    const CoordinateSequence &q, std::size_t q0, std::size_t q1)
 {
+    reset();
+
     LineIntersector li(precisionModel);
     li.computeIntersection(p, p0, p1, q, q0, q1);
 
@@ -379,6 +381,7 @@ CircularArcIntersector::intersects(const CoordinateSequence &p, std::size_t p0, 
         // FIXME this means a collinear intersection, so we should report as cocircular?
         intPt[0] = li.getIntersection(0);
         intPt[1] = li.getIntersection(1);
+        nPt = 2;
         result = TWO_POINT_INTERSECTION;
     } else if (li.getIntersectionNum() == 1) {
         intPt[0] = li.getIntersection(0);

@@ -14,7 +14,6 @@
  **********************************************************************/
 
 
-#include <algorithm/ClothoidGeometry.h>
 #include <geos/algorithm/locate/IndexedPointInAreaLocator.h>
 #include <geos/algorithm/CircularArcs.h>
 #include <geos/geom/CircularArc.h>
@@ -34,6 +33,7 @@
 #include <geos/util.h>
 #include <geos/algorithm/RayCrossingCounter.h>
 #include <geos/index/ItemVisitor.h>
+#include <algorithm/ClothoidGeometry.h>
 
 #include <algorithm>
 

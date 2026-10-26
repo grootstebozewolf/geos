@@ -122,12 +122,28 @@ void object::test<3>
 {
     set_test_name("MultiSurface");
 
-    const std::string wkt = "MULTISURFACE (CURVEPOLYGON (CIRCULARSTRING (-1 0, 0 1, 1 0, 0 -1, -1 0)), ((5 5, 6 5, 6 6, 5 5)))";
+    const std::string wkt = "MULTISURFACE (CURVEPOLYGON (CIRCULARSTRING (-1 0, 0 1, 1 0, 0 -1, -1 0)), "
+                            "((5 5, 6 5, 6 6, 5 5)))";
 
     checkLocation(wkt, CoordinateXY(0, 0.9), Location::INTERIOR);
     checkLocation(wkt, CoordinateXY(0.9, 0.9), Location::EXTERIOR);
     checkLocation(wkt, CoordinateXY(0, -1), Location::BOUNDARY);
     checkLocation(wkt, CoordinateXY(5.9, 5.5), Location::INTERIOR);
+}
+
+template<>
+template<>
+void object::test<4>
+()
+{
+    set_test_name("full circle given by three points");
+
+    const std::string wkt = "CURVEPOLYGON (CIRCULARSTRING (5 0, -5 0, 5 0))";
+
+    checkLocation(wkt, CoordinateXY(0, 0), Location::INTERIOR);
+    checkLocation(wkt, CoordinateXY(4, 0), Location::INTERIOR);
+    checkLocation(wkt, CoordinateXY(5, 0), Location::BOUNDARY);
+    checkLocation(wkt, CoordinateXY(6, 0), Location::EXTERIOR);
 }
 
 }

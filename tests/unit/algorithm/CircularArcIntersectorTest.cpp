@@ -1944,6 +1944,31 @@ void object::test<98>()
                             XY{0, 2});
 }
 
+template<>
+template<>
+void object::test<99>()
+{
+    set_test_name("collinear segments overlapping, with a reused intersector");
+
+    CoordinateSequence p = CoordinateSequence::XY(0);
+    p.add(0.0, 0.0);
+    p.add(4.0, 0.0);
+    CoordinateSequence q = CoordinateSequence::XY(0);
+    q.add(1.0, 0.0);
+    q.add(6.0, 0.0);
+    q.add(10.0, 10.0);
+    q.add(11.0, 10.0);
+
+    CircularArcIntersector cai;
+    cai.intersects(p, 0, 1, q, 0, 1);
+    ensure_equals(cai.getResult(), CircularArcIntersector::TWO_POINT_INTERSECTION);
+    ensure_equals(static_cast<int>(cai.getNumPoints()), 2);
+
+    cai.intersects(p, 0, 1, q, 2, 3);
+    ensure_equals(cai.getResult(), CircularArcIntersector::NO_INTERSECTION);
+    ensure_equals(static_cast<int>(cai.getNumPoints()), 0);
+}
+
 // TODO: check Z values of arc result centerpoints
 // TODO: add tests for seg/seg
 

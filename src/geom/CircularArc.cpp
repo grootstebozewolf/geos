@@ -18,7 +18,6 @@
 #include <geos/algorithm/PointLocation.h>
 #include <geos/geom/CircularArc.h>
 #include <geos/geom/Envelope.h>
-#include <geos/geom/LineSegment.h>
 #include <geos/math/DD.h>
 #include <geos/triangulate/quadedge/TrianglePredicate.h>
 #include <sstream>
@@ -216,19 +215,19 @@ CircularArc::containsAngle(double theta) const
 bool
 CircularArc::containsPoint(const CoordinateXY& q) const
 {
+    if (isLinear()) {
+        // Collinear control points describe the segment p0-p2, as in
+        // getLength() and CircularArcIntersector.
+        return algorithm::PointLocation::isOnSegment(q, p0(), p2());
+    }
+
     if (q == p0() || q == p1() || q == p2()) {
         return true;
     }
 
-    if (isLinear()) {
-        // Collinear control points describe the path p0 -> p1 -> p2.
-        return algorithm::PointLocation::isOnSegment(q, p0(), p1()) ||
-               algorithm::PointLocation::isOnSegment(q, p1(), p2());
-    }
-
     if (isCircle()) {
-        // p0 and p1 are the ends of a diameter, so q is on the circle exactly
-        // when the angle p0-q-p1 is a right angle (Thales).
+        // p0 and p1 are the ends of a diameter, so q is on the circle when the
+        // angle p0-q-p1 is a right angle (Thales).
         using math::DD;
         const DD ax = DD(p0().x) - q.x;
         const DD ay = DD(p0().y) - q.y;
@@ -250,42 +249,47 @@ CircularArc::containsPoint(const CoordinateXY& q) const
     return containsPointOnCircle(q);
 }
 
+namespace {
+
+/// The control points that lie on the arc: all three, or only the endpoints
+/// when the control points are collinear.
+struct ArcVertices {
+    std::array<CoordinateXY, 3> pts;
+    std::size_t size;
+
+    explicit ArcVertices(const CircularArc& arc)
+        : pts{arc.p0(), arc.p2(), arc.p1()}
+        , size(arc.isLinear() ? 2 : 3)
+    {}
+
+    const CoordinateXY* begin() const { return pts.data(); }
+    const CoordinateXY* end() const { return pts.data() + size; }
+};
+
+}
+
 CoordinateXY
 CircularArc::closestPoint(const CoordinateXY &q) const
 {
     if (containsPoint(q)) {
         return q;
     }
-
-    if (isLinear()) {
-        const CoordinateXY c0 = LineSegment::closestPoint(p0(), p1(), q);
-        const CoordinateXY c1 = LineSegment::closestPoint(p1(), p2(), q);
-        return c0.distance(q) <= c1.distance(q) ? c0 : c1;
-    }
-
     return CircularArcs::closestPointArcPoint(getCenter(), getRadius(), p0(), p2(), isCCW(), q);
 }
 
 std::array<CoordinateXY, 2>
 CircularArc::closestPoints(const CoordinateXY& q0, const CoordinateXY& q1) const
 {
-    // Shared and touching vertices are detected with exact predicates, so
-    // that a zero distance is reported as exactly zero.
-    for (const CoordinateXY* q : {&q0, &q1}) {
-        if (containsPoint(*q)) {
-            return {*q, *q};
+    // Report a vertex lying on the other input as a zero distance.
+    for (const CoordinateXY& q : {q0, q1}) {
+        if (containsPoint(q)) {
+            return {q, q};
         }
     }
-    for (const CoordinateXY* p : {&p0(), &p1(), &p2()}) {
-        if (algorithm::PointLocation::isOnSegment(*p, q0, q1)) {
-            return {*p, *p};
+    for (const CoordinateXY& p : ArcVertices(*this)) {
+        if (algorithm::PointLocation::isOnSegment(p, q0, q1)) {
+            return {p, p};
         }
-    }
-
-    if (isLinear()) {
-        const auto pts0 = LineSegment::closestPoints(p0(), p1(), q0, q1);
-        const auto pts1 = LineSegment::closestPoints(p1(), p2(), q0, q1);
-        return pts0[0].distance(pts0[1]) <= pts1[0].distance(pts1[1]) ? pts0 : pts1;
     }
 
     return CircularArcs::closestPointsArcSegment(getCenter(), getRadius(), p0(), p2(), isCCW(), q0, q1);
@@ -294,29 +298,16 @@ CircularArc::closestPoints(const CoordinateXY& q0, const CoordinateXY& q1) const
 std::array<CoordinateXY, 2>
 CircularArc::closestPoints(const CircularArc &other) const
 {
-    for (const CoordinateXY* q : {&other.p0(), &other.p1(), &other.p2()}) {
-        if (containsPoint(*q)) {
-            return {*q, *q};
+    // Report a vertex lying on the other arc as a zero distance.
+    for (const CoordinateXY& q : ArcVertices(other)) {
+        if (containsPoint(q)) {
+            return {q, q};
         }
     }
-    for (const CoordinateXY* p : {&p0(), &p1(), &p2()}) {
-        if (other.containsPoint(*p)) {
-            return {*p, *p};
+    for (const CoordinateXY& p : ArcVertices(*this)) {
+        if (other.containsPoint(p)) {
+            return {p, p};
         }
-    }
-
-    if (isLinear()) {
-        auto pts0 = other.closestPoints(p0(), p1());
-        auto pts1 = other.closestPoints(p1(), p2());
-        auto& pts = pts0[0].distance(pts0[1]) <= pts1[0].distance(pts1[1]) ? pts0 : pts1;
-        std::swap(pts[0], pts[1]);
-        return pts;
-    }
-
-    if (other.isLinear()) {
-        const auto pts0 = closestPoints(other.p0(), other.p1());
-        const auto pts1 = closestPoints(other.p1(), other.p2());
-        return pts0[0].distance(pts0[1]) <= pts1[0].distance(pts1[1]) ? pts0 : pts1;
     }
 
     return CircularArcs::closestPointsArcArc(getCenter(), getRadius(), p0(), p2(), isCCW(),

@@ -182,13 +182,15 @@ template<>
 void object::test<11>
 ()
 {
-    const std::string ms = "MULTISURFACE (CURVEPOLYGON (CIRCULARSTRING (-1 0, 0 1, 1 0, 0 -1, -1 0)), ((5 5, 6 5, 6 6, 5 5)))";
+    const std::string ms = "MULTISURFACE (CURVEPOLYGON (CIRCULARSTRING (-1 0, 0 1, 1 0, 0 -1, -1 0)), "
+                           "((5 5, 6 5, 6 6, 5 5)))";
     runPtLocator(Location::INTERIOR, Coordinate(0, 0.9), ms);
     runPtLocator(Location::BOUNDARY, Coordinate(0, 1), ms);
     runPtLocator(Location::EXTERIOR, Coordinate(0.9, 0.9), ms);
 
     runPtLocator(Location::INTERIOR, Coordinate(0, 0.5),
-                 "GEOMETRYCOLLECTION (CURVEPOLYGON (COMPOUNDCURVE (CIRCULARSTRING (-1 0, 0 1, 1 0), (1 0, -1 0))), POINT (5 5))");
+                 "GEOMETRYCOLLECTION (CURVEPOLYGON (COMPOUNDCURVE (CIRCULARSTRING (-1 0, 0 1, 1 0), (1 0, -1 0))), "
+                 "POINT (5 5))");
 }
 
 } // namespace tut

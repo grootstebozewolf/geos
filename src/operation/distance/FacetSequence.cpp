@@ -16,7 +16,7 @@
  *
  **********************************************************************/
 
-#include <algorithm/ClothoidGeometry.h>
+#include <geos/operation/distance/FacetSequence.h>
 #include <geos/geom/CoordinateSequence.h>
 #include <geos/geom/Geometry.h>
 #include <geos/geom/LineSegment.h>
@@ -24,7 +24,7 @@
 #include <geos/algorithm/Distance.h>
 #include <geos/geom/CircularArc.h>
 #include <geos/geom/Clothoid.h>
-#include <geos/operation/distance/FacetSequence.h>
+#include <algorithm/ClothoidGeometry.h>
 
 #include <memory>
 

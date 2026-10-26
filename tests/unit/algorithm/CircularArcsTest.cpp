@@ -1002,6 +1002,7 @@ void object::test<72>()
     ensure_equals(a.distance(b), 0);
     ensure_equals(b.distance(a), 0);
 }
+
 template<>
 template<>
 void object::test<73>()
@@ -1061,13 +1062,15 @@ void object::test<76>()
 {
     set_test_name("containsPoint and distance: collinear control points");
 
-    // The path runs p0 -> p1 -> p2 and doubles back along the line x + y = 2.
-    CircularArc arc = CircularArc::create(XY{3, -1}, XY{-1, 3}, XY{2, 0});
+    // Collinear control points are treated as the segment p0-p2, as in
+    // getLength() and CircularArcIntersector, so p1 is not on the curve.
+    CircularArc arc = CircularArc::create(XY{0, 0}, XY{2, 0}, XY{1, 0});
 
-    ensure(arc.containsPoint(XY{1, 1}));
-    ensure_not(arc.containsPoint(XY{-2, 4}));
-    ensure_equals(arc.distance(XY{1, 1}, XY{-3, -3}), 0);
-    ensure_equals("distance", arc.distance(XY{-2, 4}), std::sqrt(2), 1e-12);
+    ensure(arc.containsPoint(XY{0.5, 0}));
+    ensure_not(arc.containsPoint(XY{1.5, 0}));
+    ensure_not(arc.containsPoint(XY{2, 0}));
+    ensure_equals("distance", arc.distance(XY{1.5, 0}), 0.5);
+    ensure_equals("segment distance", arc.distance(XY{1.5, -1}, XY{1.5, 1}), 0.5);
 }
 
 template<>
@@ -1084,5 +1087,23 @@ void object::test<77>()
     ensure_equals(b.distance(a), 0);
 }
 
+
+
+template<>
+template<>
+void object::test<78>()
+{
+    set_test_name("distance: candidate opposite the other center is outside the arc");
+
+    // The point of A opposite B's center lies outside A, and was accepted
+    // as a candidate. The closest pair is A's end (5 0) and B's circle,
+    // centered at (-4 3) with radius 10.
+    CircularArc a = CircularArc::create(XY{-4, -3}, XY{0, 5}, XY{5, 0});
+    CircularArc b = CircularArc::create(XY{2, -5}, XY{4, -3}, XY{6, 3});
+    const double expected = 10 - 3*std::sqrt(10);
+
+    ensure_equals("distance", a.distance(b), expected, 1e-12);
+    ensure_equals("distance reversed", b.distance(a), expected, 1e-12);
+}
 
 }

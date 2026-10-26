@@ -219,6 +219,10 @@ RayCrossingCounter::shouldCountCrossing(const geom::CircularArc& arc, const geom
     // a) is in the interior of the arc
     // b) is at the starting point of the arc, and the arc is directed upward at that point
     // c) is at the ending point of the arc is directed downward at that point
+    // The start of a full circle is not a vertex, so it is treated as interior.
+    if (arc.isCircle()) {
+        return q.x != c.x;
+    }
     if (q.equals2D(arc.p0())) {
         if (arc.isCCW()) {
             return q.x > c.x || (q.x == c.x && q.y < c.y);
@@ -291,10 +295,10 @@ RayCrossingCounter::countArc(const geom::CircularArc& arc)
     // a horizontal ray running from the test point in
     // the positive x direction.
 
-    // If the arc is degenerate, process it is two line segments
+    // If the arc is degenerate, process it as the segment p0-p2, as
+    // CircularArcIntersector does
     if (arc.isLinear()) {
-        countSegment(arc.p0(), arc.p1());
-        countSegment(arc.p1(), arc.p2());
+        countSegment(arc.p0(), arc.p2());
         return;
     }
 

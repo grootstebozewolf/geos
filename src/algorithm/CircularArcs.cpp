@@ -471,6 +471,8 @@ CircularArcs::circleIntersectsSegment(const CoordinateXY& center, double r,
 bool
 CircularArcs::containsAngle(double t0, double t2, bool isCCW, double theta)
 {
+    theta = Angle::normalize(theta);
+
     if (theta == t0 || theta == t2) {
         return true;
     }
@@ -566,10 +568,10 @@ CircularArcs::closestPointsArcSegment(const CoordinateXY& c, double r,
         return geom::LineSegment::closestPoints(p0, p2, q0, q1);
     }
 
-    // An arc endpoint lying on the segment is an exact intersection.
-    for (const CoordinateXY* p : {&p0, &p2}) {
-        if (Envelope(q0, q1).intersects(*p) && Orientation::index(q0, q1, *p) == Orientation::COLLINEAR) {
-            return {*p, *p};
+    // An arc endpoint on the segment is an intersection.
+    for (const CoordinateXY& p : {p0, p2}) {
+        if (Envelope(q0, q1).intersects(p) && Orientation::index(q0, q1, p) == Orientation::COLLINEAR) {
+            return {p, p};
         }
     }
 

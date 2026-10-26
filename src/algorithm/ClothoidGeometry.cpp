@@ -266,8 +266,8 @@ swapped(const Nearest& n)
     return s;
 }
 
-/// A pair closer than the curve's evaluation tolerance touches: points that
-/// near are on the curve for point location, so report them as coincident.
+/// Report a pair within the evaluation tolerance as coincident at the curve
+/// point, as PointLocator treats such points as on the curve.
 Nearest
 snapped(const Nearest& n, double tolerance)
 {
@@ -276,8 +276,8 @@ snapped(const Nearest& n, double tolerance)
     }
     Nearest s;
     s.distance = 0.0;
-    s.onCurve = n.onTarget;
-    s.onTarget = n.onTarget;
+    s.onCurve = n.onCurve;
+    s.onTarget = n.onCurve;
     return s;
 }
 

@@ -206,7 +206,8 @@ void object::test<8>()
 {
     set_test_name("indexed distance with curved inputs");
 
-    geom1_ = fromWKT("MULTICURVE (CIRCULARSTRING (0 0, 1 1, 2 0), COMPOUNDCURVE (CIRCULARSTRING (10 0, 11 1, 12 0), (12 0, 13 0)))");
+    geom1_ = fromWKT("MULTICURVE (CIRCULARSTRING (0 0, 1 1, 2 0), "
+                     "COMPOUNDCURVE (CIRCULARSTRING (10 0, 11 1, 12 0), (12 0, 13 0)))");
     geom2_ = fromWKT("LINESTRING (1 2, 2 2)");
 
     double dist, distIndexed;
@@ -214,6 +215,22 @@ void object::test<8>()
     ensure_equals(GEOSDistanceIndexed(geom1_, geom2_, &distIndexed), 1);
     ensure_equals(dist, 1.0);
     ensure_equals(distIndexed, 1.0);
+}
+
+template<>
+template<>
+void object::test<9>()
+{
+    set_test_name("indexed distance with a CircularString longer than one facet sequence");
+
+    geom1_ = fromWKT("CIRCULARSTRING (0 0, 1 1, 2 0, 3 -1, 4 0, 5 1, 6 0, 7 -1, 8 0, 9 1, 10 0, 11 -1, 12 0)");
+    geom2_ = fromWKT("LINESTRING (9 3, 13 1.5)");
+
+    double dist, distIndexed;
+    ensure_equals(GEOSDistance(geom1_, geom2_, &dist), 1);
+    ensure_equals(GEOSDistanceIndexed(geom1_, geom2_, &distIndexed), 1);
+    ensure_equals("indexed", distIndexed, dist, 1e-12);
+    ensure(dist > 0);
 }
 
 } // namespace tut

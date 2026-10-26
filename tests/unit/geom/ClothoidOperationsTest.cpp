@@ -351,7 +351,8 @@ void object::test<9>()
         ensure_equals(wkt, IndexedFacetDistance::distance(spiral.get(), target.get()), expected, 1e-12);
         ensure_equals(wkt + " reversed", IndexedFacetDistance::distance(target.get(), spiral.get()), expected, 1e-12);
         auto pts = IndexedFacetDistance::nearestPoints(spiral.get(), target.get());
-        ensure_equals(wkt + " nearest points", pts->getAt<CoordinateXY>(0).distance(pts->getAt<CoordinateXY>(1)), expected, 1e-12);
+        const double nearest = pts->getAt<CoordinateXY>(0).distance(pts->getAt<CoordinateXY>(1));
+        ensure_equals(wkt + " nearest points", nearest, expected, 1e-12);
     }
 
     auto other = iso(at(0.3, 0.5, 0.0, 1.0, -1.0, 0.0), 2.0, -2.0, 2.0);
