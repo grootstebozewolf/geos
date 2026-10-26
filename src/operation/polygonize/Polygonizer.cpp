@@ -116,6 +116,9 @@ Polygonizer::add(const SimpleCurve* line)
     if (line->getGeometryTypeId() == GEOS_CLOTHOID) {
         throw util::UnsupportedOperationException("Clothoid polygonize is not implemented");
     }
+    if (line->getGeometryTypeId() == GEOS_NURBSCURVE) {
+        throw util::UnsupportedOperationException("NURBS polygonize is not implemented");
+    }
     if (line->getGeometryTypeId() == GEOS_CIRCULARSTRING) {
         graph->addEdge(detail::down_cast<const CircularString*>(line));
     } else {

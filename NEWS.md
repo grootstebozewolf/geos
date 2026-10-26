@@ -3,6 +3,7 @@
 
 - New things:
   - Clothoid WKT/WKB (ISO type 22)
+  - NURBS curve WKT/WKB (ISO type 21)
   - Add DirectedHausdorffDistance and C API GEOSDirectedHausdorffDistance /
     GEOSSymmetricHausdorffDistance (Martin Davis, Jeroen Bloemscheer, Dan Baston)
 

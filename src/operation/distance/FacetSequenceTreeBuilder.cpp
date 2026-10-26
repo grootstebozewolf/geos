@@ -22,6 +22,7 @@
 #include <geos/geom/LineString.h>
 #include <geos/geom/Point.h>
 #include <geos/geom/SimpleCurve.h>
+#include <geos/util/UnsupportedOperationException.h>
 
 #include <algorithm>
 
@@ -66,6 +67,9 @@ FacetSequenceTreeBuilder::computeFacetSequences(const Geometry* g)
                             if (!section->isEmpty()) {
                                 m_sections.emplace_back(static_cast<const Clothoid*>(section));
                             }
+                        }
+                        else if (section->getGeometryTypeId() == GEOS_NURBSCURVE) {
+                            throw util::UnsupportedOperationException("NURBS distance is not implemented");
                         }
                         else {
                             addFacetSequences(seq, m_sections);

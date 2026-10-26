@@ -31,6 +31,7 @@
 #include <geos/index/strtree/Interval.h>
 #include <geos/index/strtree/TemplateSTRtree.h>
 #include <geos/util.h>
+#include <geos/util/UnsupportedOperationException.h>
 #include <geos/algorithm/RayCrossingCounter.h>
 #include <geos/index/ItemVisitor.h>
 #include <algorithm/ClothoidGeometry.h>
@@ -107,6 +108,10 @@ IndexedPointInAreaLocator::IntervalIndexedGeometry::init(const geom::Geometry& g
             }
             else if (section->getGeometryTypeId() == geom::GEOS_CLOTHOID) {
                 nclothoids++;
+            }
+            else if (section->getGeometryTypeId() == geom::GEOS_NURBSCURVE) {
+                throw util::UnsupportedOperationException(
+                    "NURBS point location is not implemented");
             }
             else {
                 nsegs += npts - 1;

@@ -47,6 +47,7 @@ namespace WKBConstants {
         wkbClothoid = 22,
         wkbSpiralCurve = 23,
         wkbAffinePlacement = 102,
+        wkbNurbsCurve = 21,
     };
 
     enum wkbFlavour {

@@ -42,6 +42,7 @@ class GeometryFactory;
 class Coordinate;
 class CircularString;
 class Clothoid;
+class NurbsCurve;
 class CompoundCurve;
 class CurvePolygon;
 class Geometry;
@@ -170,6 +171,12 @@ private:
     std::unique_ptr<geom::CircularString> readCircularString();
 
     std::unique_ptr<geom::Clothoid> readClothoid();
+    std::unique_ptr<geom::NurbsCurve> readNurbsCurve();
+
+    std::unique_ptr<geom::NurbsCurve> readNurbsCurveBody();
+
+    /// True when a geometry header follows: a byte order and a known type.
+    bool isGeometryHeaderNext() const;
 
     std::unique_ptr<geom::CompoundCurve> readCompoundCurve();
 

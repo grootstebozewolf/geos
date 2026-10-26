@@ -370,9 +370,15 @@ DistanceOp::computeMinDistanceLines(
     std::array<GeometryLocation, 2> & locGeom)
 {
     for(const SimpleCurve* line0 : lines0) {
+        if (line0->getGeometryTypeId() == GEOS_NURBSCURVE) {
+            throw util::UnsupportedOperationException("NURBS distance is not implemented");
+        }
         const bool isCurved0 = line0->getGeometryTypeId() == GEOS_CIRCULARSTRING;
 
         for(const SimpleCurve* line1 : lines1) {
+            if (line1->getGeometryTypeId() == GEOS_NURBSCURVE) {
+                throw util::UnsupportedOperationException("NURBS distance is not implemented");
+            }
             const bool isCurved1 = line1->getGeometryTypeId() == GEOS_CIRCULARSTRING;
 
             if (line0->isEmpty() || line1->isEmpty())
@@ -461,6 +467,9 @@ DistanceOp::computeMinDistanceLinesPoints(
             if (sc->isEmpty() || pt->isEmpty())
                 continue;
 
+            if (sc->getGeometryTypeId() == GEOS_NURBSCURVE) {
+                throw util::UnsupportedOperationException("NURBS distance is not implemented");
+            }
             if (sc->getGeometryTypeId() == GEOS_CLOTHOID) {
                 computeMinDistance(detail::down_cast<const Clothoid*>(sc), pt, locGeom);
             } else if (sc->getGeometryTypeId() == GEOS_CIRCULARSTRING) {
