@@ -71,5 +71,18 @@ void object::test<4>()
     ensure_equals(GEOSDisjoint(geom2_, geom1_), 0);
 }
 
+template<>
+template<>
+void object::test<5>()
+{
+    set_test_name("curved types without arcs");
+
+    geom1_ = fromWKT("CURVEPOLYGON (COMPOUNDCURVE ((0 0, 10 0, 10 10, 0 10, 0 0)))");
+    geom2_ = fromWKT("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))");
+
+    ensure_equals(GEOSDisjoint(geom1_, geom2_), 0);
+    ensure_equals(GEOSDisjoint(geom2_, geom1_), 0);
+}
+
 } // namespace tut
 

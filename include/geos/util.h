@@ -78,6 +78,22 @@ void ensureNoCurvedComponents(const T* geom)
     ensureNoCurvedComponents(*geom);
 }
 
+/// Refuses curved geometry types, including those made only of linear sections.
+template<typename T>
+void ensureNoCurvedTypes(const T& geom)
+{
+    if (geom.hasCurvedTypes()) {
+        throw UnsupportedOperationException(
+            "Curved geometry types are not supported. Call getLinearized first.");
+    }
+}
+
+template<typename T>
+void ensureNoCurvedTypes(const T* geom)
+{
+    ensureNoCurvedTypes(*geom);
+}
+
 
 }
 
