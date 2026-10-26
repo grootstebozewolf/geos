@@ -8,16 +8,10 @@
 
 - Fixes/Improvements:
   - Curve overlay robustness improvements (GH-1513, Dan Baston)
-  - Support curved geometries, clothoids included, in intersects / disjoint,
-    IndexedPointInAreaLocator and IndexedFacetDistance / GEOSDistanceIndexed,
-    without linearization (Jeroen Bloemscheer)
-  - Report clothoid distances within the evaluation tolerance as zero, so crossing
-    clothoids intersect (Jeroen Bloemscheer)
-  - PointLocator: support CurvePolygon, MultiCurve and MultiSurface, and treat the endpoints
-    of open (not closed) CircularString and CompoundCurve as boundary (Jeroen Bloemscheer)
-  - Fix arc-segment distance missing closest pairs at segment endpoints and arc endpoints (Jeroen Bloemscheer)
-  - CircularArcIntersector: detect segment endpoints and control points lying exactly on an arc (Jeroen Bloemscheer)
-  - CircularArc::containsPoint: handle full circles and collinear control points (Jeroen Bloemscheer)
+  - Support curved inputs in intersects / disjoint, PointLocator, IndexedPointInAreaLocator
+    and GEOSDistanceIndexed (Jeroen Bloemscheer)
+  - Fix curve distance and point location errors, and the boundary of open curves (Jeroen Bloemscheer)
+  - Envelope::distance returns zero for envelopes that touch (Jeroen Bloemscheer)
   - GeometrySplitter: Allow splitting a MultiSurface (GH-1520, Dan Baston)
   - GEOSGridIntersectionFractions: Set cells outside geometry bounding box to zero (GH-1532, Dan Baston)
   - GEOSisSimpleDetail returns locations with input SRID (Sandro Santilli)
