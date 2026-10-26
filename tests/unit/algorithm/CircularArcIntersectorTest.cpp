@@ -1801,7 +1801,7 @@ void object::test<90>()
     set_test_name("arcs tangent at a shared vertex intersect at it");
 
     // The circles through these control points are internally tangent at
-    // the shared vertex (5, 0). The rounded circle-circle disjointness test
+    // the shared vertex (5, 0). The rounded circle-circle separation test
     // concludes the circles do not meet, which formerly discarded the
     // exact shared vertex. (Differential-test oracle invariant: arcs
     // sharing an endpoint intersect.)

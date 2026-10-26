@@ -112,6 +112,9 @@ public:
 
     bool isDimensionStrict(Dimension::DimensionType d) const override;
 
+    /// True when any element has a curved type.
+    bool hasCurvedTypes() const override;
+
     /// Returns coordinate dimension.
     uint8_t getCoordinateDimension() const override;
 

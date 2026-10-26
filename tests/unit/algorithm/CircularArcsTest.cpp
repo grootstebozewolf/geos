@@ -977,7 +977,7 @@ void object::test<71>()
     set_test_name("distance: arcs tangent at a shared vertex");
 
     // The circles through these control points are internally tangent at the
-    // shared vertex (5, 0), but the rounded circle-circle disjointness test
+    // shared vertex (5, 0), but the rounded circle-circle separation test
     // concludes they do not meet. The exact shared vertex must still make
     // the distance zero.
     CircularArc a = CircularArc::create(XY{5, 0}, XY{6.530331962423936, 32.9099081287533}, XY{39.1383458646334, 37.61324718856101});

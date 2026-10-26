@@ -17,9 +17,11 @@
  *
  **********************************************************************/
 
+#include <algorithm/ClothoidGeometry.h>
 #include <geos/algorithm/PointLocator.h>
 #include <geos/algorithm/PointLocation.h>
 #include <geos/geom/CircularString.h>
+#include <geos/geom/Clothoid.h>
 #include <geos/geom/CompoundCurve.h>
 #include <geos/geom/Geometry.h>
 #include <geos/geom/Point.h>
@@ -97,6 +99,10 @@ PointLocator::computeLocation(const CoordinateXY& p, const Geometry* geom)
         case GEOS_LINEARRING: {
             const LineString* ls = static_cast<const LineString*>(geom);
             updateLocationInfo(locate(p, ls));
+            break;
+        }
+        case GEOS_CLOTHOID: {
+            updateLocationInfo(locateOnClothoid(p, static_cast<const Clothoid*>(geom)));
             break;
         }
         case GEOS_CIRCULARSTRING: {
@@ -247,6 +253,13 @@ PointLocator::locate(const CoordinateXY& p, const CompoundCurve* cc)
 
     for (std::size_t i = 0; i < cc->getNumCurves(); i++) {
         const SimpleCurve* curve = cc->getCurveN(i);
+        if (curve->getGeometryTypeId() == GEOS_CLOTHOID) {
+            const algorithm::clothoid::PlacedClothoid placed(*static_cast<const Clothoid*>(curve));
+            if (algorithm::clothoid::nearestToPoint(placed, p).distance <= placed.tolerance()) {
+                return Location::INTERIOR;
+            }
+            continue;
+        }
         if (curve->getGeometryTypeId() == GEOS_CIRCULARSTRING) {
             const CircularString* cs = static_cast<const CircularString*>(curve);
             for (const auto& arc : cs->getArcs()) {
@@ -262,6 +275,32 @@ PointLocator::locate(const CoordinateXY& p, const CompoundCurve* cc)
         }
     }
 
+    return Location::EXTERIOR;
+}
+
+/* private */
+Location
+PointLocator::locateOnClothoid(const CoordinateXY& p, const Clothoid* c)
+{
+    if (c->isEmpty()) {
+        return Location::EXTERIOR;
+    }
+    const algorithm::clothoid::PlacedClothoid placed(*c);
+    const double tol = placed.tolerance();
+    Envelope env(*c->getEnvelopeInternal());
+    env.expandBy(tol);
+    if (!env.intersects(p)) {
+        return Location::EXTERIOR;
+    }
+    if (!c->isClosed()) {
+        const CoordinateSequence* seq = c->getCoordinatesRO();
+        if (p.equals2D(seq->front<CoordinateXY>()) || p.equals2D(seq->back<CoordinateXY>())) {
+            return Location::BOUNDARY;
+        }
+    }
+    if (algorithm::clothoid::nearestToPoint(placed, p).distance <= tol) {
+        return Location::INTERIOR;
+    }
     return Location::EXTERIOR;
 }
 
