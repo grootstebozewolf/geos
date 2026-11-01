@@ -38,18 +38,37 @@ GEOS is [open source software](https://opensource.com/resources/what-open-source
 The GEOS project is run by a
 [Project Steering Committee]({{< ref "psc" >}}) made up of developers
 and contributors to the project and is a project of
-[OSGeo](https://www.osgeo.org/projects/geos/). We strive to keep our day-to-day interactions collegial and welcoming within a basic [Code of Conduct]({{< ref "coc" >}}).
+[OSGeo](https://www.osgeo.org/projects/geos/). Major decisions are made through the
+[RFC process]({{< ref "rfcs" >}}), where proposals are documented and then voted on by the committee.
+We strive to keep our day-to-day interactions collegial and welcoming within a basic [Code of Conduct]({{< ref "coc" >}}).
 
-## Relationship to JTS
+GEOS is developed as part of a family of closely related, direct ports of the
+same computational geometry code base, and coordinates with its sibling projects
+([JTS](https://github.com/locationtech/jts/) and [NTS](https://github.com/NetTopologySuite/NetTopologySuite))
+on algorithms, behaviour and test data.
+
+## The JTS / GEOS / NTS Ecosystem
 
 GEOS started as a direct port to C++ of the
 [JTS Topology Suite](https://github.com/locationtech/jts/) (JTS),
 and remains tightly bound to that project. Most core algorithms have
 been developed in JTS and ported to GEOS when complete.
 
+[NetTopologySuite](https://github.com/NetTopologySuite/NetTopologySuite) (NTS)
+is a direct port of JTS to .NET and is part of the same ecosystem:
+
+| Project | Language | Role |
+|---------|----------|------|
+| [JTS](https://github.com/locationtech/jts/) | Java | Reference implementation, where most new algorithms are developed |
+| GEOS | C/C++ | Direct port of JTS to C++, with a stable C API used by PostGIS, QGIS, GDAL, Shapely and others |
+| [NTS](https://github.com/NetTopologySuite/NetTopologySuite) | C# / .NET | Direct port of JTS to .NET, used by the .NET geospatial stack |
+
+The three projects follow the same design and share algorithms, so that fixes and
+improvements made in one can be carried over to the others.
+
 The projects share testing data.  This helps to ascertain when failures
-are caused by differences in implementation (GEOS fails and JTS does not)
-and when they are caused by algorithm (both libraries fail).
+are caused by differences in implementation (one port fails and the others do not)
+and when they are caused by algorithm (all libraries fail).
 
 ## Citation
 
