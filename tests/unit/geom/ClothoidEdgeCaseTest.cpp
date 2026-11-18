@@ -721,4 +721,19 @@ void object::test<25>()
     }
 }
 
+template<>
+template<>
+void object::test<26>()
+{
+    set_test_name("closed compound curve with a clothoid is not normalized from its chord");
+
+    // The return chord makes a degenerate ring. The curve has positive area,
+    // so a chord isCCW test would leave the counter-clockwise ring unreversed.
+    ensure_THROW(closedSpiral()->normalize(), UnsupportedOperationException);
+
+    auto open = spiral();
+    open->normalize();
+    ensure(!open->isEmpty());
+}
+
 } // namespace tut
